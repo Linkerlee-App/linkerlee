@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
     config()->set('services.mailgun.webhook_signing_key', 'test-signing-key');
-    config()->set('services.mailgun.inbound_domain', 'in.linkerlee.com');
+    config()->set('services.mailgun.inbound_domain', 'mg.linkerlee.com');
 
     Http::fake(function () {
         return Http::response('<html><head><title>Fetched Title</title></head></html>');
@@ -23,7 +23,7 @@ function mailgunPayload(array $overrides = []): array
         'timestamp' => $timestamp,
         'token' => $token,
         'signature' => $signature,
-        'recipient' => 'save@in.linkerlee.com',
+        'recipient' => 'save@mg.linkerlee.com',
         'sender' => 'someone@example.com',
         'subject' => 'A cool article',
         'body-plain' => 'check out https://laravel.com today',
@@ -45,7 +45,7 @@ test('rejects stale requests', function () {
         'timestamp' => $timestamp,
         'token' => $token,
         'signature' => $signature,
-        'recipient' => 'save@in.linkerlee.com',
+        'recipient' => 'save@mg.linkerlee.com',
         'sender' => 'someone@example.com',
         'subject' => 'A cool article',
         'body-plain' => 'https://laravel.com',
@@ -60,7 +60,7 @@ test('creates a link via inbox token in the recipient', function () {
     $user = User::factory()->create(['inbox_token' => str_repeat('a', 24)]);
 
     $payload = mailgunPayload([
-        'recipient' => 'inbox-'.$user->inbox_token.'@in.linkerlee.com',
+        'recipient' => 'inbox-'.$user->inbox_token.'@mg.linkerlee.com',
         'sender' => 'somebody-unrelated@example.com',
         'subject' => 'A great post',
         'body-plain' => 'Read this https://laravel.com soon',
@@ -79,7 +79,7 @@ test('falls back to matching by sender email', function () {
     $user = User::factory()->create(['email' => 'me@example.com']);
 
     $payload = mailgunPayload([
-        'recipient' => 'save@in.linkerlee.com',
+        'recipient' => 'save@mg.linkerlee.com',
         'sender' => 'me@example.com',
         'subject' => 'https://laravel.com',
         'body-plain' => 'https://laravel.com',

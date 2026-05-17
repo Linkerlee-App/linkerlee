@@ -19,7 +19,7 @@ return [
         'secret' => env('MAILGUN_SECRET'),
         'endpoint' => env('MAILGUN_ENDPOINT', 'api.eu.mailgun.net'),
         'webhook_signing_key' => env('MAILGUN_WEBHOOK_SIGNING_KEY'),
-        'inbound_domain' => env('MAILGUN_INBOUND_DOMAIN', 'in.linkerlee.com'),
+        'inbound_domain' => env('MAILGUN_INBOUND_DOMAIN', 'mg.linkerlee.com'),
     ],
 
     'postmark' => [
