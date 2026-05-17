@@ -1,9 +1,9 @@
 import { Head } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
 import { dashboard } from '@/routes';
 import * as linksRoute from '@/routes/links';
-import { Link } from '@inertiajs/react';
+import type { BreadcrumbItem } from '@/types';
 
 interface Stats {
     totalLinks: number;

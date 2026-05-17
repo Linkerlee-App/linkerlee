@@ -1,7 +1,7 @@
 import { Head, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
 import * as linksRoute from '@/routes/links';
+import type { BreadcrumbItem } from '@/types';
 
 interface TrashedLink {
     id: number;

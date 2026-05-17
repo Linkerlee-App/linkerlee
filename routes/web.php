@@ -1,17 +1,19 @@
 <?php
 
 use App\Http\Controllers\BulkEditingController;
-use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CsrfController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeleteUserDataController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\InboxController;
+use App\Http\Controllers\Internal\MailgunInboundController;
 use App\Http\Controllers\LinkController;
 use App\Http\Controllers\PublicLinkController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\TagController;
+use App\Http\Middleware\VerifyMailgunWebhook;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -31,8 +33,6 @@ Route::get('dashboard', [DashboardController::class, 'index'])
     ->name('dashboard');
 
 require __DIR__.'/settings.php';
-
-
 
 Route::middleware(['auth', 'verified'])->group(function () {
 
@@ -80,3 +80,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 Route::get('/share/{shareId}', [PublicLinkController::class, 'show'])->name('share');
+
+Route::post('/webhooks/mailgun/inbound', MailgunInboundController::class)
+    ->middleware(VerifyMailgunWebhook::class)
+    ->name('webhooks.mailgun.inbound');

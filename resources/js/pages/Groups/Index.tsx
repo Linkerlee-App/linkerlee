@@ -1,7 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
 import * as groupsRoute from '@/routes/groups';
+import type { BreadcrumbItem } from '@/types';
 
 interface GroupItem {
     id: number;

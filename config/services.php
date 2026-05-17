@@ -14,6 +14,14 @@ return [
     |
     */
 
+    'mailgun' => [
+        'domain' => env('MAILGUN_DOMAIN'),
+        'secret' => env('MAILGUN_SECRET'),
+        'endpoint' => env('MAILGUN_ENDPOINT', 'api.eu.mailgun.net'),
+        'webhook_signing_key' => env('MAILGUN_WEBHOOK_SIGNING_KEY'),
+        'inbound_domain' => env('MAILGUN_INBOUND_DOMAIN', 'in.linkerlee.com'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

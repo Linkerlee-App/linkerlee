@@ -2,21 +2,24 @@
 
 namespace App\Http\Controllers\ApiControllers;
 
-use App\Helpers\WebpageData;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreLinkApiRequest;
+use App\Http\Requests\UpdateLinkApiRequest;
 use App\Models\Link;
+use App\Models\Tag;
 use App\Services\Models\GroupService;
+use App\Services\Models\LinkCreationService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
-use Spatie\Tags\Tag;
 
 class LinkController extends Controller
 {
     public function __construct(
         protected GroupService $groupService,
-    )
-    {
+        protected LinkCreationService $linkCreationService,
+    ) {
         //
     }
 
@@ -27,19 +30,13 @@ class LinkController extends Controller
     {
         $validated = $request->validated();
 
-        $link = Link::make();
+        $link = $this->linkCreationService->create(
+            Auth::user(),
+            $validated['link'],
+            $validated['title'] ?? null,
+        );
 
-        $link->link = $validated['link'];
-        $link->title = $validated['title'];
-        $link->user_id = Auth::id();
-
-        if (empty($link->title)) {
-            $link->title = WebpageData::getWebPageTitle($link->link);
-        }
-
-        $link->save();
-
-        if (key_exists('groups', $validated)) {
+        if (array_key_exists('groups', $validated)) {
             $groupIds = $validated['groups'];
 
             $link->groups()->sync($groupIds);
@@ -47,16 +44,97 @@ class LinkController extends Controller
             $this->groupService->updateUserGroupsLinkCount(Auth::user());
         }
 
-        if (key_exists('tags', $validated)) {
-            $tags = [];
+        $tags = [];
 
-            foreach ($validated['tags'] as $tag) {
-                $tags[] = Tag::filterByCurrentUser()->find($tag);
+        foreach ($validated['tags'] ?? [] as $tagId) {
+            $tag = Tag::find($tagId);
+            if ($tag !== null) {
+                $tags[] = $tag;
             }
+        }
 
+        foreach ($validated['newTags'] ?? [] as $name) {
+            $tags[] = Tag::findOrCreate($name);
+        }
+
+        if ($tags !== []) {
             $link->syncTags($tags);
         }
 
         return response('The link was added.', headers: ['Content-Type' => 'text/plain']);
+    }
+
+    /**
+     * Look up an existing link by URL for the authenticated user.
+     */
+    public function find(Request $request): JsonResponse
+    {
+        if (! $request->user()->tokenCan('create')) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'link' => ['required', 'url'],
+        ]);
+
+        $link = Link::with('tags')
+            ->where('user_id', Auth::id())
+            ->where('link', $validated['link'])
+            ->first();
+
+        if ($link === null) {
+            return response()->json(null, 404);
+        }
+
+        return response()->json($this->presentLink($link));
+    }
+
+    /**
+     * Update an existing link (title + tags). The URL itself is immutable here.
+     */
+    public function update(UpdateLinkApiRequest $request, int $linkId): JsonResponse
+    {
+        $link = Link::where('user_id', Auth::id())->find($linkId);
+
+        if ($link === null) {
+            abort(404);
+        }
+
+        $validated = $request->validated();
+
+        if (array_key_exists('title', $validated) && $validated['title'] !== null) {
+            $link->title = $validated['title'];
+            $link->save();
+        }
+
+        $tags = [];
+
+        foreach ($validated['tags'] ?? [] as $tagId) {
+            $tag = Tag::find($tagId);
+            if ($tag !== null) {
+                $tags[] = $tag;
+            }
+        }
+
+        foreach ($validated['newTags'] ?? [] as $name) {
+            $tags[] = Tag::findOrCreate($name);
+        }
+
+        $link->syncTags($tags);
+
+        return response()->json($this->presentLink($link->fresh('tags')));
+    }
+
+    private function presentLink(Link $link): array
+    {
+        return [
+            'id' => $link->id,
+            'title' => $link->title,
+            'link' => $link->link,
+            'tags' => $link->tags
+                ->map(fn ($tag) => ['id' => $tag->id, 'name' => $tag->name])
+                ->values()
+                ->all(),
+        ];
     }
 }

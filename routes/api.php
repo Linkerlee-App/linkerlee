@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ApiControllers\GroupController;
 use App\Http\Controllers\ApiControllers\LinkController;
+use App\Http\Controllers\ApiControllers\SuggestTagController;
 use App\Http\Controllers\ApiControllers\TagController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -26,4 +27,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/all-groups', [GroupController::class, 'getAllGroups']);
 
     Route::post('/links', [LinkController::class, 'store']);
+    Route::get('/links/find', [LinkController::class, 'find']);
+    Route::put('/links/{linkId}', [LinkController::class, 'update']);
+    Route::post('/suggest-tags', SuggestTagController::class);
 });

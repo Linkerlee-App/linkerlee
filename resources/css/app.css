@@ -141,3 +141,15 @@
         @apply bg-background text-foreground;
     }
 }
+
+:root {
+    --brand-orange: #fba115;
+    --brand-orange-600: #e8890a;
+    --brand-orange-700: #c97208;
+    --brand-amber: #ffc266;
+    --brand-cream: #fff8ec;
+    --brand-cream-2: #fdefd3;
+    --brand-ink: #1a1410;
+    --brand-grad: linear-gradient(135deg, #fba115 0%, #ffb347 50%, #ffc266 100%);
+    --brand-grad-soft: linear-gradient(180deg, #fff8ec 0%, #ffffff 100%);
+}

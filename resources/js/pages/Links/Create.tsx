@@ -1,12 +1,12 @@
 import { Head, useForm } from '@inertiajs/react';
 import { useRef, useState } from 'react';
-import AppLayout from '@/layouts/app-layout';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { BreadcrumbItem } from '@/types';
+import AppLayout from '@/layouts/app-layout';
 import * as linksRoute from '@/routes/links';
+import type { BreadcrumbItem } from '@/types';
 
 interface Tag {
     id: number;

@@ -11,14 +11,14 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { dashboard } from '@/routes';
+import * as groupsRoute from '@/routes/groups';
+import * as inboxRoute from '@/routes/inbox';
+import * as linksRoute from '@/routes/links';
+import * as publicLinksRoute from '@/routes/publicLinks';
+import * as tagsRoute from '@/routes/tags';
 import type { NavItem } from '@/types';
 import AppLogo from './app-logo';
-import { dashboard } from '@/routes';
-import * as linksRoute from '@/routes/links';
-import * as tagsRoute from '@/routes/tags';
-import * as groupsRoute from '@/routes/groups';
-import * as publicLinksRoute from '@/routes/publicLinks';
-import * as inboxRoute from '@/routes/inbox';
 
 const mainNavItems: NavItem[] = [
     {

@@ -1,7 +1,7 @@
 import { Head, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
 import * as tagsRoute from '@/routes/tags';
+import type { BreadcrumbItem } from '@/types';
 
 interface Tag {
     id: number;

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\ApiControllers;
 
 use App\Http\Controllers\Controller;
-use Spatie\Tags\Tag;
+use App\Models\Tag;
 
 class TagController extends Controller
 {
@@ -15,7 +15,7 @@ class TagController extends Controller
         return Tag::orderBy('name')
             ->filterByCurrentUser()
             ->get()
-            ->transform(fn(Tag $tag) => [
+            ->transform(fn (Tag $tag) => [
                 'id' => $tag->id,
                 'name' => $tag->name,
             ])

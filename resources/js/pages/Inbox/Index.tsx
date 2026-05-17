@@ -1,8 +1,8 @@
 import { Head, Link, WhenVisible } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
-import * as linksRoute from '@/routes/links';
 import * as inboxRoute from '@/routes/inbox';
+import * as linksRoute from '@/routes/links';
+import type { BreadcrumbItem } from '@/types';
 
 interface LinkItem {
     id: number;

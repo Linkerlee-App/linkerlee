@@ -4,12 +4,12 @@ namespace App\Http\Requests;
 
 use App\Models\Group;
 use App\Models\Link;
-use App\Models\Tag;
 use Closure;
-use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Request;
-use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Contracts\Validation\Rule;
 use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Facades\Request;
 
 class StoreLinkApiRequest extends FormRequest
 {
@@ -35,7 +35,7 @@ class StoreLinkApiRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\Rule|array|string>
+     * @return array<string, Rule|array|string>
      */
     public function rules(): array
     {
@@ -49,19 +49,12 @@ class StoreLinkApiRequest extends FormRequest
                     if ($group && $group->user_id !== auth()->id()) {
                         $fail('You do not own this group.');
                     }
-                }
+                },
             ],
             'tags' => 'nullable|array',
-            'tags.*' => [
-                'integer',
-                'exists:tags,id',
-                function (string $attribute, int $value, Closure $fail) {
-                    $tag = Tag::find($value);
-                    if ($tag && $tag->user_id !== auth()->id()) {
-                        $fail('You do not own this tag.');
-                    }
-                }
-            ],
+            'tags.*' => ['integer', 'exists:tags,id'],
+            'newTags' => 'nullable|array',
+            'newTags.*' => 'string|min:1|max:50',
         ]);
     }
 
@@ -70,7 +63,7 @@ class StoreLinkApiRequest extends FormRequest
         throw new HttpResponseException(response()->json([
             'success' => false,
             'message' => 'Validation errors',
-            'data' => $validator->errors()
+            'data' => $validator->errors(),
         ], 422));
     }
 }

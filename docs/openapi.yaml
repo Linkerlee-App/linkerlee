@@ -1,0 +1,190 @@
+openapi: 3.0.3
+info:
+  title: LinkerLee API
+  description: |
+    REST API for LinkerLee, a bookmarking service. All endpoints require a Laravel
+    Sanctum bearer token.
+  version: 1.0.0
+servers:
+  - url: https://linkerlee.com/api
+    description: Production
+security:
+  - sanctum: []
+paths:
+  /user:
+    get:
+      summary: Get the authenticated user
+      operationId: getCurrentUser
+      tags: [User]
+      responses:
+        '200':
+          description: The authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /all-tags:
+    get:
+      summary: List all tags for the current user
+      operationId: getAllTags
+      tags: [Tags]
+      responses:
+        '200':
+          description: Tags ordered by name
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tag'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /all-groups:
+    get:
+      summary: List all groups for the current user
+      operationId: getAllGroups
+      tags: [Groups]
+      responses:
+        '200':
+          description: Groups ordered by title
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Group'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /links:
+    post:
+      summary: Create a new link
+      operationId: storeLink
+      description: |
+        Creates a new bookmark for the authenticated user. Requires a token with
+        the `create` ability. If `title` is omitted the title is fetched from the
+        target URL. If `link` has no scheme, `https://` is prepended automatically.
+      tags: [Links]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreLinkRequest'
+      responses:
+        '200':
+          description: Link created
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: The link was added.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+components:
+  securitySchemes:
+    sanctum:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum personal access token
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Jane Doe
+        email:
+          type: string
+          format: email
+          example: jane@example.com
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: laravel
+    Group:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Reading list
+    StoreLinkRequest:
+      type: object
+      required: [link]
+      properties:
+        link:
+          type: string
+          format: uri
+          description: URL to bookmark. Must be unique per user.
+          example: https://laravel.com/docs
+        title:
+          type: string
+          minLength: 2
+          nullable: true
+          description: Optional. Auto-fetched from the page if empty.
+          example: Laravel Documentation
+        groups:
+          type: array
+          nullable: true
+          items:
+            type: integer
+          description: IDs of groups owned by the user.
+          example: [1, 4]
+        tags:
+          type: array
+          nullable: true
+          items:
+            type: integer
+          description: IDs of tags owned by the user.
+          example: [2]
+    ValidationErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Validation errors
+        data:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            link:
+              - The link field is required.
+  responses:
+    Unauthorized:
+      description: Missing or invalid token
+    Forbidden:
+      description: Token lacks the required ability or resource ownership check failed
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
