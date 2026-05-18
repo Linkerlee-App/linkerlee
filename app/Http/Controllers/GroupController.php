@@ -47,25 +47,27 @@ class GroupController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(StoreGroupRequest $request)
+    public function store(StoreGroupRequest $request): RedirectResponse
     {
         $validated = $request->validated();
 
         $group = Group::make();
 
         $group->title = $validated['title'];
-        $group->parent_group_id = $validated['parentGroupId'];
+        $group->parent_group_id = $validated['parentGroupId'] ?? null;
         $group->user_id = Auth::id();
 
         $group->query_options = $this->groupService->cleanupQueryOptions([
-            'containsTagsOr' => $validated['orTags'],
-            'containsTagsAnd' => $validated['andTags'],
-            'containsTagsNot' => $validated['notTags'],
+            'containsTagsOr' => $validated['orTags'] ?? [],
+            'containsTagsAnd' => $validated['andTags'] ?? [],
+            'containsTagsNot' => $validated['notTags'] ?? [],
         ]);
 
         $group->updateLinksCount();
 
         $group->save();
+
+        return Redirect::route('groups.index');
     }
 
     /**
