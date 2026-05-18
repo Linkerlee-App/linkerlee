@@ -25,6 +25,12 @@ class MailgunInboundController extends Controller
         $subject = $request->input('subject');
         $body = $request->input('stripped-text') ?? $request->input('body-plain');
 
+        Log::debug('Mailgun inbound: received email.', [
+            'recipient' => $recipient,
+            'sender' => $sender,
+            'subject' => $subject,
+        ]);
+
         $user = $this->resolveUser($recipient, $sender);
 
         if ($user === null) {
