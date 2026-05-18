@@ -22,6 +22,8 @@ return [
 
     'require_auth_in_production' => true,
 
+    'allowed_emails' => array_values(array_filter(array_map('trim', explode(',', (string) env('LOG_VIEWER_ALLOWED_EMAILS', ''))))),
+
     /*
     |--------------------------------------------------------------------------
     | Log Viewer Domain

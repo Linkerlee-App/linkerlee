@@ -31,9 +31,8 @@ class AppServiceProvider extends ServiceProvider
             if (! $user) {
                 return false;
             }
-            $allowed = array_filter(array_map('trim', explode(',', (string) env('LOG_VIEWER_ALLOWED_EMAILS', ''))));
 
-            return in_array($user->email, $allowed, true);
+            return in_array($user->email, (array) config('log-viewer.allowed_emails', []), true);
         });
 
         $this->configureDefaults();
