@@ -16,6 +16,7 @@
         "laravel/sanctum": "^4.3",
         "laravel/tinker": "^2.10.1",
         "laravel/wayfinder": "^0.1.9",
+        "opcodesio/log-viewer": "^3.24",
         "spatie/laravel-searchable": "^1.13",
         "spatie/laravel-tags": "^4.11",
         "symfony/http-client": "^8.0",
