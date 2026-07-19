@@ -100,13 +100,14 @@ class Link extends Model implements Searchable
         return $this->updated_at->format('d.m.Y');
     }
 
-    public function scopeFilterLinks(Builder $query, string $searchString, array $filteredTags = [], bool|string $showUntaggedOnly = false, bool|string $showUnreadOnly = false): Builder
+    public function scopeFilterLinks(Builder $query, string $searchString, array $filteredTags = [], bool|string $showUntaggedOnly = false, bool|string $showUnreadOnly = false, bool|string $showFavoritesOnly = false): Builder
     {
         return $query
             ->when($searchString, fn ($q) => $q->where(fn ($q) => $this->applySearchString($q, $searchString)))
             ->when($filteredTags, fn ($q) => $q->withAnyTags($filteredTags))
             ->when($showUntaggedOnly, fn ($q) => $q->whereDoesntHave('tags'))
-            ->when($showUnreadOnly, fn ($q) => $q->whereNull('links.read_at'));
+            ->when($showUnreadOnly, fn ($q) => $q->whereNull('links.read_at'))
+            ->when($showFavoritesOnly, fn ($q) => $q->where('links.is_favorite', true));
     }
 
     /**

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ApiControllers\SuggestTagController;
 use App\Http\Controllers\BulkEditingController;
 use App\Http\Controllers\CsrfController;
 use App\Http\Controllers\DashboardController;
@@ -39,8 +40,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('links', LinkController::class);
 
     Route::get('/links-trashed', [LinkController::class, 'trashed'])->name('links.trashed');
+    Route::delete('/links-trashed/empty', [LinkController::class, 'emptyTrash'])->name('links.empty-trash');
     Route::patch('/links/{link}/archive', [LinkController::class, 'archive'])->name('links.archive');
     Route::patch('/links/{link}/restore', [LinkController::class, 'restore'])->name('links.restore')->withTrashed();
+    Route::delete('/links/{link}/force', [LinkController::class, 'forceDestroy'])->name('links.force-destroy');
     Route::patch('/links/{link}/toggle-favorite', [LinkController::class, 'toggleFavorite'])->name('links.toggle-favorite');
     Route::patch('/links/{link}/toggle-read', [LinkController::class, 'toggleRead'])->name('links.toggle-read');
     Route::patch('/links/{link}/rate', [LinkController::class, 'rate'])->name('links.rate');
@@ -62,7 +65,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/all-tags', [TagController::class, 'getAllTags']);
     Route::get('/all-groups', [GroupController::class, 'getAllGroups']);
 
-    Route::post('/bulk-edit-links', [BulkEditingController::class, 'editLinks']);
+    Route::post('/bulk-edit-links', [BulkEditingController::class, 'editLinks'])->name('bulk-edit-links');
+
+    Route::post('/suggest-tags', SuggestTagController::class)
+        ->name('suggest-tags');
 
     Route::post('/search', [SearchController::class, 'search'])
         ->name('search');

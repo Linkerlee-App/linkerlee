@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreLinkRequest;
 use App\Http\Requests\UpdateLinkRequest;
+use App\Http\Resources\LinkResource;
 use App\Jobs\FetchLinkMetadataJob;
 use App\Models\Group;
 use App\Models\Link;
@@ -32,8 +33,9 @@ class LinkController extends Controller
     {
         $searchString = Request::get('search') ?? '';
         $filteredTags = Request::get('tags') ?? '';
-        $showUntaggedOnly = Request::get('untaggedOnly') ?? false;
+        $showUntaggedOnly = Request::boolean('untaggedOnly');
         $showUnreadOnly = Request::boolean('unreadOnly');
+        $showFavoritesOnly = Request::boolean('favorite');
 
         $filteredTags = empty($filteredTags) ? [] : explode(',', $filteredTags);
 
@@ -41,29 +43,14 @@ class LinkController extends Controller
             'links' => Inertia::scroll(fn () => Link::with(['tags', 'groups'])
                 ->orderBy('created_at', 'desc')
                 ->filterByCurrentUser()
-                ->filterLinks($searchString, $filteredTags, $showUntaggedOnly, $showUnreadOnly)
+                ->filterLinks($searchString, $filteredTags, $showUntaggedOnly, $showUnreadOnly, $showFavoritesOnly)
                 ->cursorPaginate(20)
-                ->through(fn (Link $link) => [
-                    'id' => $link->id,
-                    'title' => $link->title,
-                    'description' => $link->description,
-                    'link' => $link->link,
-                    'is_favorite' => $link->is_favorite,
-                    'rating' => $link->rating,
-                    'read_at' => $link->read_at?->toISOString(),
-                    'favicon_url' => $link->favicon_url,
-                    'preview_image_url' => $link->preview_image_url,
-                    'tags' => $link->tags->map(fn ($tag) => ['id' => $tag->id, 'name' => $tag->name])->values(),
-                    'tag_ids' => $link->tags->pluck('id')->toArray(),
-                    'linkGroups' => $link->groups->sortBy('title')->values()->map(fn ($g) => ['id' => $g->id, 'title' => $g->title])->values(),
-                    'group_ids' => $link->groups->pluck('id')->toArray(),
-                    'created_at' => $link->getCreatedAtForHumansAttribute(),
-                    'created_at_with_time' => $link->getCreatedAtForHumansAttribute(true),
-                ])),
+                ->through(fn (Link $link) => LinkResource::make($link)->resolve())),
             'searchString' => $searchString,
             'filteredTags' => $filteredTags ? TagController::getTagsByNames($filteredTags) : [],
             'showUntaggedOnly' => $showUntaggedOnly,
             'showUnreadOnly' => $showUnreadOnly,
+            'showFavoritesOnly' => $showFavoritesOnly,
             'allTags' => TagController::getAllTags(),
             'allGroups' => Group::orderBy('title')
                 ->filterByCurrentUser()
@@ -130,60 +117,16 @@ class LinkController extends Controller
      */
     public function show(int $link): Response|RedirectResponse
     {
-        $link = Link::filterByCurrentUser()->find($link);
+        $link = Link::with(['tags', 'groups'])->filterByCurrentUser()->find($link);
 
         if ($link === null) {
             return Redirect::route('links.index');
         }
 
         return Inertia::render('SingleLink/Index', [
-            'link' => (object) [
-                'title' => $link->title,
-                'description' => $link->description,
-                'link' => $link->link,
-                'id' => $link->id,
-                'is_favorite' => $link->is_favorite,
-                'rating' => $link->rating,
-                'read_at' => $link->read_at?->toISOString(),
-                'favicon_url' => $link->favicon_url,
-                'preview_image_url' => $link->preview_image_url,
-                'tags' => TagController::getTagsOfLink($link),
-                'linkGroups' => $link->groups
-                    ->sortBy('title')
-                    ->values()
-                    ->transform(fn (Group $group) => [
-                        'id' => $group->id,
-                        'title' => $group->title,
-                    ]),
-                'groups' => $link->groupIds(),
-                'created_at' => $link->getCreatedAtForHumansAttribute(),
-                'updated_at' => $link->getUpdatedAtForHumansAttribute(),
-                'created_at_with_time' => $link->getCreatedAtForHumansAttribute(true),
-                'updated_at_with_time' => $link->getUpdatedAtForHumansAttribute(true),
-            ],
-        ]);
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Link $link): Response|RedirectResponse
-    {
-        if (! $link->user_id === Auth::id()) {
-            return Redirect::route('links.index');
-        }
-
-        return Inertia::render('Links/Edit', [
-            'link' => [
-                'id' => $link->id,
-                'title' => $link->title,
-                'description' => $link->description,
-                'link' => $link->link,
-                'tags' => $link->tagIds(),
-                'groups' => $link->groupIds(),
-            ],
-            'tags' => TagController::getAllTags(),
-            'groups' => Group::orderBy('title')
+            'link' => LinkResource::make($link)->resolve(),
+            'allTags' => TagController::getAllTags(),
+            'allGroups' => Group::orderBy('title')
                 ->filterByCurrentUser()
                 ->get()
                 ->map(fn (Group $group) => ['id' => $group->id, 'title' => $group->title]),
@@ -191,10 +134,22 @@ class LinkController extends Controller
     }
 
     /**
+     * Editing happens inline on the link detail views.
+     */
+    public function edit(Link $link): RedirectResponse
+    {
+        $this->authorizeOwnership($link);
+
+        return Redirect::route('links.show', $link->id);
+    }
+
+    /**
      * Update the specified resource in storage.
      */
     public function update(UpdateLinkRequest $request, Link $link)
     {
+        $this->authorizeOwnership($link);
+
         $validated = $request->validated();
 
         $link->link = $validated['link'];
@@ -229,13 +184,13 @@ class LinkController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Permanently remove the specified resource from storage.
      */
     public function destroy(Link $link): RedirectResponse
     {
-        $link->groups()->detach();
+        $this->authorizeOwnership($link);
 
-        $link->delete();
+        $this->forceDeleteLink($link);
 
         $this->groupService->updateUserGroupsLinkCount(Auth::user());
 
@@ -247,6 +202,8 @@ class LinkController extends Controller
      */
     public function archive(Link $link): RedirectResponse
     {
+        $this->authorizeOwnership($link);
+
         $link->delete();
 
         $this->groupService->updateUserGroupsLinkCount(Auth::user());
@@ -288,10 +245,37 @@ class LinkController extends Controller
     }
 
     /**
+     * Permanently delete a trashed link.
+     */
+    public function forceDestroy(int $link): RedirectResponse
+    {
+        $link = Link::withTrashed()->filterByCurrentUser()->findOrFail($link);
+
+        $this->forceDeleteLink($link);
+
+        return Redirect::route('links.trashed');
+    }
+
+    /**
+     * Permanently delete all trashed links of the current user.
+     */
+    public function emptyTrash(): RedirectResponse
+    {
+        Link::onlyTrashed()
+            ->filterByCurrentUser()
+            ->get()
+            ->each(fn (Link $link) => $this->forceDeleteLink($link));
+
+        return Redirect::route('links.trashed');
+    }
+
+    /**
      * Toggle the favorite status of a link.
      */
     public function toggleFavorite(Link $link): JsonResponse
     {
+        $this->authorizeOwnership($link);
+
         $link->is_favorite = ! $link->is_favorite;
         $link->save();
 
@@ -303,7 +287,7 @@ class LinkController extends Controller
      */
     public function toggleRead(Link $link): JsonResponse
     {
-        abort_unless($link->user_id === Auth::id(), 404);
+        $this->authorizeOwnership($link);
 
         $link->read_at = $link->read_at === null ? now() : null;
         $link->save();
@@ -316,11 +300,25 @@ class LinkController extends Controller
      */
     public function rate(Link $link): JsonResponse
     {
+        $this->authorizeOwnership($link);
+
         Request::validate(['rating' => 'nullable|integer|min:1|max:5']);
 
         $link->rating = Request::get('rating');
         $link->save();
 
         return response()->json(['rating' => $link->rating]);
+    }
+
+    protected function authorizeOwnership(Link $link): void
+    {
+        abort_unless($link->user_id === Auth::id(), 404);
+    }
+
+    protected function forceDeleteLink(Link $link): void
+    {
+        $link->groups()->detach();
+        $link->syncTags([]);
+        $link->forceDelete();
     }
 }
