@@ -42,6 +42,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/links/{link}/archive', [LinkController::class, 'archive'])->name('links.archive');
     Route::patch('/links/{link}/restore', [LinkController::class, 'restore'])->name('links.restore')->withTrashed();
     Route::patch('/links/{link}/toggle-favorite', [LinkController::class, 'toggleFavorite'])->name('links.toggle-favorite');
+    Route::patch('/links/{link}/toggle-read', [LinkController::class, 'toggleRead'])->name('links.toggle-read');
     Route::patch('/links/{link}/rate', [LinkController::class, 'rate'])->name('links.rate');
 
     Route::resource('tags', TagController::class)->except([

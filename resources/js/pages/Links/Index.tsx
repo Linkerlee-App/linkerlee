@@ -1,6 +1,6 @@
 import { Head, WhenVisible, useForm, router } from '@inertiajs/react';
 import axios from 'axios';
-import { Archive, Check, Copy, ExternalLink, Pencil, Star, Trash2 } from 'lucide-react';
+import { Archive, BookmarkCheck, Check, Copy, ExternalLink, Pencil, Star, Trash2 } from 'lucide-react';
 import { useState, useRef } from 'react';
 import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +38,9 @@ interface LinkItem {
     link: string;
     is_favorite: boolean;
     rating: number | null;
+    read_at: string | null;
+    favicon_url: string | null;
+    preview_image_url: string | null;
     tags: Tag[];
     tag_ids: number[];
     linkGroups: Group[];
@@ -57,6 +60,7 @@ interface Props {
     searchString: string;
     filteredTags: Tag[];
     showUntaggedOnly: boolean;
+    showUnreadOnly: boolean;
     allTags: Tag[];
     allGroups: Group[];
 }
@@ -405,17 +409,30 @@ function LinkDetailView({
 }) {
     const [isFavorite, setIsFavorite] = useState(link.is_favorite);
     const [rating, setRating] = useState(link.rating);
+    const [readAt, setReadAt] = useState(link.read_at);
     const [isEditing, setIsEditing] = useState(false);
     const [copied, setCopied] = useState(false);
     const [confirmArchive, setConfirmArchive] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
 
-    const favicon = faviconUrl(link.link);
+    const favicon = link.favicon_url ?? faviconUrl(link.link);
 
     async function handleToggleFavorite() {
         const { data } = await axios.patch<{ is_favorite: boolean }>(linksRoute.toggleFavorite(link.id).url);
         setIsFavorite(data.is_favorite);
         router.reload({ only: ['links'] });
+    }
+
+    async function handleToggleRead() {
+        const { data } = await axios.patch<{ read_at: string | null }>(linksRoute.toggleRead(link.id).url);
+        setReadAt(data.read_at);
+        router.reload({ only: ['links'] });
+    }
+
+    function handleOpen() {
+        if (readAt === null) {
+            void handleToggleRead();
+        }
     }
 
     async function handleRate(value: number) {
@@ -493,7 +510,7 @@ function LinkDetailView({
 
             <div className="mt-3 flex gap-2">
                 <Button asChild size="sm">
-                    <a href={link.link} target="_blank" rel="noopener noreferrer">
+                    <a href={link.link} target="_blank" rel="noopener noreferrer" onClick={handleOpen}>
                         <ExternalLink />
                         Open link
                     </a>
@@ -502,7 +519,26 @@ function LinkDetailView({
                     {copied ? <Check /> : <Copy />}
                     {copied ? 'Copied' : 'Copy URL'}
                 </Button>
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleToggleRead}
+                    title={readAt === null ? 'Mark as read' : 'Mark as unread'}
+                >
+                    <BookmarkCheck className={readAt !== null ? 'text-green-600' : ''} />
+                    {readAt === null ? 'Mark read' : 'Read'}
+                </Button>
             </div>
+
+            {link.preview_image_url && ! isEditing && (
+                <img
+                    src={link.preview_image_url}
+                    alt=""
+                    className="mt-4 max-h-48 w-full rounded-md border border-border object-cover"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+            )}
 
             {isEditing ? (
                 <div className="mt-4">
@@ -629,9 +665,16 @@ function LinkDetailView({
     );
 }
 
-export default function LinksIndex({ links: paginator, searchString, filteredTags, showUntaggedOnly, allTags, allGroups }: Props) {
+export default function LinksIndex({ links: paginator, searchString, showUnreadOnly, allTags, allGroups }: Props) {
     const [createOpen, setCreateOpen] = useState(false);
     const [selectedLink, setSelectedLink] = useState<LinkItem | null>(null);
+
+    function toggleUnreadFilter() {
+        router.get(linksRoute.index().url, {
+            ...(searchString ? { search: searchString } : {}),
+            ...(showUnreadOnly ? {} : { unreadOnly: 1 }),
+        }, { only: ['links', 'showUnreadOnly'], preserveState: true });
+    }
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -639,32 +682,67 @@ export default function LinksIndex({ links: paginator, searchString, filteredTag
             <div className="flex flex-col gap-4 p-4">
                 <div className="flex items-center justify-between">
                     <h1 className="text-xl font-semibold">Links</h1>
-                    <Button onClick={() => setCreateOpen(true)}>Add Link</Button>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant={showUnreadOnly ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={toggleUnreadFilter}
+                            aria-pressed={showUnreadOnly}
+                        >
+                            <BookmarkCheck />
+                            Unread
+                        </Button>
+                        <Button onClick={() => setCreateOpen(true)}>Add Link</Button>
+                    </div>
                 </div>
 
                 <div className="flex flex-col gap-2">
                     {paginator.data.length === 0 && (
-                        <p className="text-sm text-muted-foreground">No links yet.</p>
+                        <p className="text-sm text-muted-foreground">
+                            {showUnreadOnly ? 'No unread links.' : 'No links yet.'}
+                        </p>
                     )}
-                    {paginator.data.map((link) => (
-                        <button
-                            key={link.id}
-                            onClick={() => setSelectedLink(link)}
-                            className="flex flex-col gap-1.5 rounded-lg border border-border p-3 text-left hover:bg-accent"
-                        >
-                            <span className="font-medium">{link.title || link.link}</span>
-                            <span className="truncate text-sm text-muted-foreground">{link.link}</span>
-                            {link.tags.length > 0 && (
-                                <div className="flex flex-wrap gap-1">
-                                    {link.tags.map((tag) => (
-                                        <span key={tag.id} className="rounded-full bg-accent px-2 py-0.5 text-xs">
-                                            {tag.name}
+                    {paginator.data.map((link) => {
+                        const favicon = link.favicon_url ?? faviconUrl(link.link);
+
+                        return (
+                            <button
+                                key={link.id}
+                                onClick={() => setSelectedLink(link)}
+                                className="flex items-start gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent"
+                            >
+                                {favicon && (
+                                    <img
+                                        src={favicon}
+                                        alt=""
+                                        className="mt-0.5 size-5 shrink-0 rounded"
+                                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                    />
+                                )}
+                                <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                                    <span className="flex items-center gap-2 font-medium">
+                                        {link.read_at === null && (
+                                            <span className="size-2 shrink-0 rounded-full bg-primary" title="Unread" />
+                                        )}
+                                        <span className="truncate">{link.title || link.link}</span>
+                                    </span>
+                                    <span className="truncate text-sm text-muted-foreground">{link.link}</span>
+                                    {link.description && (
+                                        <span className="line-clamp-2 text-sm text-muted-foreground">{link.description}</span>
+                                    )}
+                                    {link.tags.length > 0 && (
+                                        <span className="flex flex-wrap gap-1">
+                                            {link.tags.map((tag) => (
+                                                <span key={tag.id} className="rounded-full bg-accent px-2 py-0.5 text-xs">
+                                                    {tag.name}
+                                                </span>
+                                            ))}
                                         </span>
-                                    ))}
-                                </div>
-                            )}
-                        </button>
-                    ))}
+                                    )}
+                                </span>
+                            </button>
+                        );
+                    })}
                 </div>
 
                 {paginator.next_cursor && (

@@ -26,6 +26,11 @@ class Link extends Model implements Searchable
         'link',
         'is_favorite',
         'rating',
+        'read_at',
+        'favicon_url',
+        'preview_image_url',
+        'page_text',
+        'metadata_fetched_at',
     ];
 
     public string $searchableType = 'Links';
@@ -35,6 +40,8 @@ class Link extends Model implements Searchable
         return [
             'is_favorite' => 'boolean',
             'rating' => 'integer',
+            'read_at' => 'datetime',
+            'metadata_fetched_at' => 'datetime',
         ];
     }
 
@@ -93,12 +100,31 @@ class Link extends Model implements Searchable
         return $this->updated_at->format('d.m.Y');
     }
 
-    public function scopeFilterLinks(Builder $query, string $searchString, array $filteredTags = [], bool|string $showUntaggedOnly = false): Builder
+    public function scopeFilterLinks(Builder $query, string $searchString, array $filteredTags = [], bool|string $showUntaggedOnly = false, bool|string $showUnreadOnly = false): Builder
     {
         return $query
-            ->when($searchString, fn ($q) => $q->where('links.title', 'LIKE', "%{$searchString}%"))
+            ->when($searchString, fn ($q) => $q->where(fn ($q) => $this->applySearchString($q, $searchString)))
             ->when($filteredTags, fn ($q) => $q->withAnyTags($filteredTags))
-            ->when($showUntaggedOnly, fn ($q) => $q->whereDoesntHave('tags'));
+            ->when($showUntaggedOnly, fn ($q) => $q->whereDoesntHave('tags'))
+            ->when($showUnreadOnly, fn ($q) => $q->whereNull('links.read_at'));
+    }
+
+    /**
+     * Match the search string against title/URL and, where the database
+     * supports it, against the stored page content via a full-text index.
+     */
+    protected function applySearchString(Builder $query, string $searchString): Builder
+    {
+        $query
+            ->where('links.title', 'LIKE', "%{$searchString}%")
+            ->orWhere('links.link', 'LIKE', "%{$searchString}%")
+            ->orWhere('links.description', 'LIKE', "%{$searchString}%");
+
+        if ($query->getConnection()->getDriverName() === 'mysql') {
+            return $query->orWhereFullText(['links.title', 'links.description', 'links.page_text'], $searchString);
+        }
+
+        return $query->orWhere('links.page_text', 'LIKE', "%{$searchString}%");
     }
 
     public function getSearchResult(): SearchResult

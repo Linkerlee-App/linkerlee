@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Helpers\WebpageData;
 use App\Http\Requests\StoreLinkRequest;
 use App\Http\Requests\UpdateLinkRequest;
+use App\Jobs\FetchLinkMetadataJob;
 use App\Models\Group;
 use App\Models\Link;
 use App\Models\Tag;
@@ -33,6 +33,7 @@ class LinkController extends Controller
         $searchString = Request::get('search') ?? '';
         $filteredTags = Request::get('tags') ?? '';
         $showUntaggedOnly = Request::get('untaggedOnly') ?? false;
+        $showUnreadOnly = Request::boolean('unreadOnly');
 
         $filteredTags = empty($filteredTags) ? [] : explode(',', $filteredTags);
 
@@ -40,7 +41,7 @@ class LinkController extends Controller
             'links' => Inertia::scroll(fn () => Link::with(['tags', 'groups'])
                 ->orderBy('created_at', 'desc')
                 ->filterByCurrentUser()
-                ->filterLinks($searchString, $filteredTags, $showUntaggedOnly)
+                ->filterLinks($searchString, $filteredTags, $showUntaggedOnly, $showUnreadOnly)
                 ->cursorPaginate(20)
                 ->through(fn (Link $link) => [
                     'id' => $link->id,
@@ -49,6 +50,9 @@ class LinkController extends Controller
                     'link' => $link->link,
                     'is_favorite' => $link->is_favorite,
                     'rating' => $link->rating,
+                    'read_at' => $link->read_at?->toISOString(),
+                    'favicon_url' => $link->favicon_url,
+                    'preview_image_url' => $link->preview_image_url,
                     'tags' => $link->tags->map(fn ($tag) => ['id' => $tag->id, 'name' => $tag->name])->values(),
                     'tag_ids' => $link->tags->pluck('id')->toArray(),
                     'linkGroups' => $link->groups->sortBy('title')->values()->map(fn ($g) => ['id' => $g->id, 'title' => $g->title])->values(),
@@ -59,6 +63,7 @@ class LinkController extends Controller
             'searchString' => $searchString,
             'filteredTags' => $filteredTags ? TagController::getTagsByNames($filteredTags) : [],
             'showUntaggedOnly' => $showUntaggedOnly,
+            'showUnreadOnly' => $showUnreadOnly,
             'allTags' => TagController::getAllTags(),
             'allGroups' => Group::orderBy('title')
                 ->filterByCurrentUser()
@@ -95,11 +100,9 @@ class LinkController extends Controller
         $link->description = $validated['description'] ?? null;
         $link->user_id = Auth::id();
 
-        if (empty($link->title)) {
-            $link->title = WebpageData::getWebPageTitle($link->link);
-        }
-
         $link->save();
+
+        FetchLinkMetadataJob::dispatch($link);
 
         $groupIds = $validated['groups'];
 
@@ -141,6 +144,9 @@ class LinkController extends Controller
                 'id' => $link->id,
                 'is_favorite' => $link->is_favorite,
                 'rating' => $link->rating,
+                'read_at' => $link->read_at?->toISOString(),
+                'favicon_url' => $link->favicon_url,
+                'preview_image_url' => $link->preview_image_url,
                 'tags' => TagController::getTagsOfLink($link),
                 'linkGroups' => $link->groups
                     ->sortBy('title')
@@ -195,11 +201,13 @@ class LinkController extends Controller
         $link->title = $validated['title'];
         $link->description = $validated['description'] ?? null;
 
-        if (empty($link->title)) {
-            $link->title = WebpageData::getWebPageTitle($link->link);
-        }
+        $urlChanged = $link->isDirty('link');
 
         $link->save();
+
+        if ($urlChanged || empty($link->title) || $link->metadata_fetched_at === null) {
+            FetchLinkMetadataJob::dispatch($link);
+        }
 
         $groupIds = $validated['groups'];
 
@@ -288,6 +296,19 @@ class LinkController extends Controller
         $link->save();
 
         return response()->json(['is_favorite' => $link->is_favorite]);
+    }
+
+    /**
+     * Toggle the read (read-later) status of a link.
+     */
+    public function toggleRead(Link $link): JsonResponse
+    {
+        abort_unless($link->user_id === Auth::id(), 404);
+
+        $link->read_at = $link->read_at === null ? now() : null;
+        $link->save();
+
+        return response()->json(['read_at' => $link->read_at?->toISOString()]);
     }
 
     /**

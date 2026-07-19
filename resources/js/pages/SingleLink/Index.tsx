@@ -20,6 +20,9 @@ interface LinkDetail {
     link: string;
     is_favorite: boolean;
     rating: number | null;
+    read_at: string | null;
+    favicon_url: string | null;
+    preview_image_url: string | null;
     tags: Tag[];
     linkGroups: Group[];
     groups: number[];
@@ -53,6 +56,10 @@ export default function SingleLinkIndex({ link }: Props) {
         router.patch(linksRoute.toggleFavorite(link.id).url, {}, { preserveScroll: true });
     }
 
+    function handleToggleRead() {
+        router.patch(linksRoute.toggleRead(link.id).url, {}, { preserveScroll: true });
+    }
+
     function handleRate(value: number) {
         const newRating = link.rating === value ? null : value;
         router.patch(linksRoute.rate(link.id).url, { rating: newRating }, { preserveScroll: true });
@@ -77,6 +84,13 @@ export default function SingleLinkIndex({ link }: Props) {
                         >
                             {link.is_favorite ? '★ Favorited' : '☆ Favorite'}
                         </button>
+                        <button
+                            onClick={handleToggleRead}
+                            className={`rounded-md border px-3 py-1.5 text-sm ${link.read_at !== null ? 'border-green-500 bg-green-50 text-green-700' : 'border-border'}`}
+                            title={link.read_at !== null ? 'Mark as unread' : 'Mark as read'}
+                        >
+                            {link.read_at !== null ? '✓ Read' : 'Mark read'}
+                        </button>
                         <Link href={linksRoute.edit(link.id).url} className="rounded-md border border-border px-3 py-1.5 text-sm">
                             Edit
                         </Link>
@@ -88,6 +102,15 @@ export default function SingleLinkIndex({ link }: Props) {
                         </button>
                     </div>
                 </div>
+
+                {link.preview_image_url && (
+                    <img
+                        src={link.preview_image_url}
+                        alt=""
+                        className="max-h-64 w-full max-w-2xl rounded-md border border-border object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                )}
 
                 {link.description && (
                     <p className="text-sm text-muted-foreground">{link.description}</p>
