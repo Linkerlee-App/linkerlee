@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\LinkResource;
+use App\Models\Group;
 use App\Models\Link;
 use Illuminate\Support\Facades\Request;
 use Inertia\Inertia;
@@ -19,20 +21,22 @@ class InboxController extends Controller
         $showUngrouped = Request::boolean('ungrouped', true);
 
         return Inertia::render('Inbox/Index', [
-            'links' => Inertia::scroll(fn () => Link::orderBy('created_at', 'desc')
+            'links' => Inertia::scroll(fn () => Link::with(['tags', 'groups'])
+                ->orderBy('created_at', 'desc')
                 ->filterByCurrentUser()
                 ->when($showUntagged, fn ($query) => $query->whereDoesntHave('tags'))
                 ->when($showUngrouped, fn ($query) => $query->whereDoesntHave('groups'))
                 ->filterLinks($searchString)
                 ->cursorPaginate(20)
-                ->through(fn (Link $link) => [
-                    'title' => $link->title,
-                    'link' => $link->link,
-                    'id' => $link->id,
-                ])),
+                ->through(fn (Link $link) => LinkResource::make($link)->resolve())),
             'searchString' => $searchString,
             'untagged' => $showUntagged,
             'ungrouped' => $showUngrouped,
+            'allTags' => TagController::getAllTags(),
+            'allGroups' => Group::orderBy('title')
+                ->filterByCurrentUser()
+                ->get()
+                ->map(fn (Group $group) => ['id' => $group->id, 'title' => $group->title]),
         ]);
     }
 }

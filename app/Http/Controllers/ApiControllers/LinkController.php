@@ -131,6 +131,9 @@ class LinkController extends Controller
             'id' => $link->id,
             'title' => $link->title,
             'link' => $link->link,
+            'read_at' => $link->read_at?->toISOString(),
+            'favicon_url' => $link->favicon_url,
+            'preview_image_url' => $link->preview_image_url,
             'tags' => $link->tags
                 ->map(fn ($tag) => ['id' => $tag->id, 'name' => $tag->name])
                 ->values()

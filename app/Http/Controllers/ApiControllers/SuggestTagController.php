@@ -14,7 +14,7 @@ class SuggestTagController extends Controller
 
     public function __invoke(Request $request): JsonResponse
     {
-        if (! $request->user()->tokenCan('create')) {
+        if ($request->user()->currentAccessToken() !== null && ! $request->user()->tokenCan('create')) {
             abort(403);
         }
 

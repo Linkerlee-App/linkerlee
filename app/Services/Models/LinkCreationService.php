@@ -2,7 +2,7 @@
 
 namespace App\Services\Models;
 
-use App\Helpers\WebpageData;
+use App\Jobs\FetchLinkMetadataJob;
 use App\Models\Link;
 use App\Models\User;
 
@@ -15,11 +15,9 @@ class LinkCreationService
         $link->title = $title;
         $link->user_id = $user->id;
 
-        if (empty($link->title)) {
-            $link->title = WebpageData::getWebPageTitle($url);
-        }
-
         $link->save();
+
+        FetchLinkMetadataJob::dispatch($link);
 
         return $link;
     }
