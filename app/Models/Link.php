@@ -4,10 +4,12 @@ namespace App\Models;
 
 use App\Concerns\HasCurrentUserScope;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Spatie\Searchable\Searchable;
 use Spatie\Searchable\SearchResult;
@@ -33,6 +35,16 @@ class Link extends Model implements Searchable
         'metadata_fetched_at',
     ];
 
+    /**
+     * Maximum length of the `link`, `favicon_url` and `preview_image_url` columns.
+     */
+    public const MAX_URL_LENGTH = 2048;
+
+    /**
+     * Maximum length of the `title` column.
+     */
+    public const MAX_TITLE_LENGTH = 255;
+
     public string $searchableType = 'Links';
 
     protected function casts(): array
@@ -53,9 +65,42 @@ class Link extends Model implements Searchable
             'link' => [
                 'url',
                 'required',
+                'max:'.self::MAX_URL_LENGTH,
                 $link !== $linkFromRequest ? Rule::unique(Link::class, 'link')->where(fn ($query) => $query->where('user_id', \Auth::id())) : '',
             ],
         ];
+    }
+
+    /**
+     * Page titles are often longer than the column allows, so keep what fits
+     * instead of failing the whole save.
+     */
+    protected function title(): Attribute
+    {
+        return Attribute::set(fn (?string $value) => $value === null ? null : Str::limit($value, self::MAX_TITLE_LENGTH, ''));
+    }
+
+    /**
+     * A URL that does not fit the column (e.g. an inline data URI) is dropped
+     * rather than truncated, since a partial URL is unusable.
+     */
+    protected function faviconUrl(): Attribute
+    {
+        return Attribute::set(fn (?string $value) => self::urlThatFits($value));
+    }
+
+    protected function previewImageUrl(): Attribute
+    {
+        return Attribute::set(fn (?string $value) => self::urlThatFits($value));
+    }
+
+    protected static function urlThatFits(?string $value): ?string
+    {
+        if ($value === null || mb_strlen($value) > self::MAX_URL_LENGTH) {
+            return null;
+        }
+
+        return $value;
     }
 
     /**

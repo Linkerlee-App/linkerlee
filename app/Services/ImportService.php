@@ -33,14 +33,14 @@ class ImportService
             foreach ($data['links'] as $linkData) {
                 $url = $linkData['link'] ?? null;
 
-                if (! $url || ! filter_var($url, FILTER_VALIDATE_URL)) {
+                if (! $url || ! filter_var($url, FILTER_VALIDATE_URL) || mb_strlen($url) > Link::MAX_URL_LENGTH) {
                     continue;
                 }
 
                 $link = Link::where('link', $url)->where('user_id', $user->id)->first();
 
                 if (! $link) {
-                    $link = new Link();
+                    $link = new Link;
                     $link->user_id = $user->id;
                     $link->link = $url;
                     $link->title = $linkData['title'] ?? null;

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Internal;
 
 use App\Http\Controllers\Controller;
+use App\Models\Link;
 use App\Models\User;
 use App\Services\Models\LinkCreationService;
 use App\Support\InboundEmailParser;
@@ -50,6 +51,15 @@ class MailgunInboundController extends Controller
             ]);
 
             return response('No URL found', 406);
+        }
+
+        if (mb_strlen($url) > Link::MAX_URL_LENGTH) {
+            Log::info('Mailgun inbound: URL is longer than the column allows.', [
+                'user_id' => $user->id,
+                'length' => mb_strlen($url),
+            ]);
+
+            return response('URL too long', 406);
         }
 
         $title = InboundEmailParser::extractTitle($subject, $url);

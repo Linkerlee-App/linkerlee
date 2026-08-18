@@ -79,8 +79,8 @@ Creates a new link for the authenticated user.
 
 | Field      | Type       | Required | Notes |
 |------------|------------|----------|-------|
-| `link`     | string     | yes      | Must be a valid URL. If the value is missing a scheme, `https://` is prepended automatically. Must be unique per user. |
-| `title`    | string     | no       | Minimum 2 characters. If omitted or empty, the title is fetched from the target page. |
+| `link`     | string     | yes      | Must be a valid URL, at most 2048 characters. If the value is missing a scheme, `https://` is prepended automatically. Must be unique per user. |
+| `title`    | string     | no       | Minimum 2 characters; longer than 255 characters is truncated. If omitted or empty, the title is fetched from the target page. |
 | `groups`   | int[]      | no       | Group IDs to attach. Each must exist and belong to the current user. |
 | `tags`     | int[]      | no       | Tag IDs to attach. Each must exist and belong to the current user. |
 

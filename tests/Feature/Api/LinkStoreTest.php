@@ -102,3 +102,44 @@ test('protocol-less link is normalized to https', function () {
     expect(Link::where('user_id', $user->id)->first()->link)
         ->toBe('https://laravel.com');
 });
+
+test('a long url is stored in full', function () {
+    $user = User::factory()->create();
+    $token = $user->createToken('ext', ['create'])->plainTextToken;
+
+    $longUrl = 'https://example.com/article?fbclid='.str_repeat('a', 1900);
+
+    $this->withHeaders(['Authorization' => "Bearer {$token}"])
+        ->post('/api/links', ['link' => $longUrl])
+        ->assertOk();
+
+    expect(Link::where('user_id', $user->id)->first()->link)->toBe($longUrl);
+});
+
+test('a url longer than the column allows is rejected with a validation error', function () {
+    $user = User::factory()->create();
+    $token = $user->createToken('ext', ['create'])->plainTextToken;
+
+    $this->withHeaders(['Authorization' => "Bearer {$token}"])
+        ->postJson('/api/links', ['link' => 'https://example.com/?q='.str_repeat('a', 2100)])
+        ->assertStatus(422)
+        ->assertJsonPath('success', false);
+
+    expect(Link::where('user_id', $user->id)->count())->toBe(0);
+});
+
+test('a title longer than the column allows is truncated instead of failing', function () {
+    $user = User::factory()->create();
+    $token = $user->createToken('ext', ['create'])->plainTextToken;
+
+    $longTitle = str_repeat('Tranzacție în asigurări ', 20);
+
+    $this->withHeaders(['Authorization' => "Bearer {$token}"])
+        ->post('/api/links', ['link' => 'https://example.com/long-title', 'title' => $longTitle])
+        ->assertOk();
+
+    $link = Link::where('user_id', $user->id)->first();
+
+    expect(mb_strlen($link->title))->toBe(255)
+        ->and($link->title)->toBe(mb_substr($longTitle, 0, 255));
+});
