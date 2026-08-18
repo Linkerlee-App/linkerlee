@@ -115,3 +115,31 @@ test('the metadata job leaves the link untouched when the page cannot be fetched
         ->and($link->page_text)->toBeNull()
         ->and($link->metadata_fetched_at)->toBeNull();
 });
+
+test('the metadata job keeps oversized titles and urls within the column limits', function () {
+    $longTitle = str_repeat('Very long page title ', 30);
+    $longImageUrl = 'https://example.com/images/'.str_repeat('b', 2100).'.png';
+
+    Http::fake([
+        'example.com/*' => Http::response(
+            '<html><head><title>'.$longTitle.'</title>'
+            .'<meta property="og:image" content="'.$longImageUrl.'">'
+            .'</head><body></body></html>'
+        ),
+    ]);
+
+    $user = User::factory()->create();
+    $link = Link::factory()->create([
+        'user_id' => $user->id,
+        'title' => null,
+        'link' => 'https://example.com/article',
+    ]);
+
+    (new FetchLinkMetadataJob($link))->handle();
+
+    $link->refresh();
+
+    expect(mb_strlen($link->title))->toBe(255)
+        ->and($link->preview_image_url)->toBeNull()
+        ->and($link->favicon_url)->toBe('https://example.com/favicon.ico');
+});

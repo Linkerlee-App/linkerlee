@@ -104,3 +104,19 @@ test('returns 406 when no url is found', function () {
 
     $this->post('/webhooks/mailgun/inbound', $payload)->assertStatus(406);
 });
+
+test('returns 406 when the url is longer than the column allows', function () {
+    $user = User::factory()->create(['email' => 'me@example.com']);
+
+    $longUrl = 'https://example.com/?q='.str_repeat('a', 2100);
+
+    $payload = mailgunPayload([
+        'sender' => 'me@example.com',
+        'subject' => 'long link',
+        'body-plain' => $longUrl,
+    ]);
+
+    $this->post('/webhooks/mailgun/inbound', $payload)->assertStatus(406);
+
+    expect(Link::query()->where('user_id', $user->id)->count())->toBe(0);
+});

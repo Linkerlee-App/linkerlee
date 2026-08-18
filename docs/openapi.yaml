@@ -137,13 +137,14 @@ components:
         link:
           type: string
           format: uri
+          maxLength: 2048
           description: URL to bookmark. Must be unique per user.
           example: https://laravel.com/docs
         title:
           type: string
           minLength: 2
           nullable: true
-          description: Optional. Auto-fetched from the page if empty.
+          description: Optional. Auto-fetched from the page if empty. Truncated to 255 characters.
           example: Laravel Documentation
         groups:
           type: array

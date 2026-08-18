@@ -80,3 +80,17 @@ test('export import round trip preserves links', function () {
 
     expect(Link::where('user_id', $otherUser->id)->where('link', 'https://roundtrip.com')->exists())->toBeTrue();
 });
+
+test('import service skips links longer than the column allows', function () {
+    $user = User::factory()->create();
+    $data = [
+        'links' => [
+            ['title' => 'Too long', 'link' => 'https://example.com/?q='.str_repeat('a', 2100), 'tags' => []],
+            ['title' => 'Fine', 'link' => 'https://example.com/ok', 'tags' => []],
+        ],
+    ];
+
+    app(ImportService::class)->importUserData($data, ['links'], $user);
+
+    expect(Link::where('user_id', $user->id)->pluck('link')->all())->toBe(['https://example.com/ok']);
+});
