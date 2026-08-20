@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Browser extension issues
+    url: https://github.com/linkerlee-app/linkerlee-browser-extension/issues
+    about: Bugs and requests for the Chrome extension belong in its own repository.
+  - name: Report a security vulnerability
+    url: https://github.com/linkerlee-app/linkerlee/blob/main/SECURITY.md
+    about: Please report security problems privately, not as a public issue.
+  - name: API reference
+    url: https://github.com/linkerlee-app/linkerlee/blob/main/docs/API.md
+    about: Endpoint documentation, before filing an API question as a bug.
