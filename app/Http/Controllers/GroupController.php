@@ -77,10 +77,8 @@ class GroupController extends Controller
     {
         $group = Group::filterByCurrentUser()->find($groupId);
         $searchString = Request::get('search') ?? '';
-        $filteredTags = Request::get('tags') ?? '';
-        $showUntaggedOnly = Request::get('untaggedOnly') ?? false;
-
-        $filteredTags = empty($filteredTags) ? [] : explode(',', $filteredTags);
+        $filteredTags = $this->requestedTagNames();
+        $showUntaggedOnly = Request::boolean('untaggedOnly');
 
         if ($group === null) {
             return Redirect::route('home');

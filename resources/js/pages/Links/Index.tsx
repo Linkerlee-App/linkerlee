@@ -51,6 +51,22 @@ export default function LinksIndex({
 
     const baseUrl = linksRoute.index().url;
 
+    /**
+     * Tag filters are ANDed, so a single name that matches no tag of the
+     * user's empties the page on its own. Naming it is the difference between
+     * a filter they can undo and a library that looks like it lost their
+     * links — the chip alone reads as an ordinary active filter.
+     */
+    const unknownTags = filteredTags.filter((tag) => tag.id === null);
+
+    const emptyMessage = unknownTags.length > 0
+        ? `No links match: ${unknownTags.map((tag) => tag.name).join(', ')} ${unknownTags.length === 1 ? 'is not one of your tags' : 'are not among your tags'}. Drop it to see the rest.`
+        : filteredTags.length > 1
+            ? `No links carry all ${filteredTags.length} of these tags.`
+            : searchString || filteredTags.length > 0 || showFavoritesOnly || showUnreadOnly || showUntaggedOnly
+                ? 'No links match the current filters.'
+                : 'No links yet. Add your first one!';
+
     const selectedLink = selectedLinkId === null
         ? null
         : paginator.data.find((link) => link.id === selectedLinkId) ?? null;
@@ -91,11 +107,7 @@ export default function LinksIndex({
 
                 <div className="flex flex-col gap-2">
                     {paginator.data.length === 0 && (
-                        <p className="text-sm text-muted-foreground">
-                            {searchString || filteredTags.length > 0 || showFavoritesOnly || showUnreadOnly || showUntaggedOnly
-                                ? 'No links match the current filters.'
-                                : 'No links yet. Add your first one!'}
-                        </p>
+                        <p className="text-sm text-muted-foreground">{emptyMessage}</p>
                     )}
                     {paginator.data.map((link) => (
                         <LinkCard

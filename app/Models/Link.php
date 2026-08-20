@@ -177,11 +177,16 @@ class Link extends Model implements Searchable
         return $this->updated_at->format('d.m.Y');
     }
 
+    /**
+     * Several tag names narrow the listing instead of widening it: a link has
+     * to carry every one of them. Picking a second tag is how the user asks
+     * for "both of these", and an OR there only ever buried the first pick.
+     */
     public function scopeFilterLinks(Builder $query, string $searchString, array $filteredTags = [], bool|string $showUntaggedOnly = false, bool|string $showUnreadOnly = false, bool|string $showFavoritesOnly = false): Builder
     {
         return $query
             ->when($searchString, fn ($q) => $q->where(fn ($q) => $this->applySearchString($q, $searchString)))
-            ->when($filteredTags, fn ($q) => $q->withAnyTags($filteredTags))
+            ->when($filteredTags, fn ($q) => $q->withAllTags($filteredTags))
             ->when($showUntaggedOnly, fn ($q) => $q->whereDoesntHave('tags'))
             ->when($showUnreadOnly, fn ($q) => $q->whereNull('links.read_at'))
             ->when($showFavoritesOnly, fn ($q) => $q->where('links.is_favorite', true));

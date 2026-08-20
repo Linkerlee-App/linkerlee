@@ -68,12 +68,14 @@ test('the tag filter only shows links carrying the tag', function () {
             ->has('allTags', 2));
 });
 
-test('filtering by several tags shows links matching any of them', function () {
+test('filtering by several tags only shows links carrying all of them', function () {
     $user = User::factory()->create();
-    $laravelLink = Link::factory()->create(['user_id' => $user->id]);
-    $laravelLink->attachTags(['laravel']);
-    $cookingLink = Link::factory()->create(['user_id' => $user->id]);
-    $cookingLink->attachTags(['cooking']);
+    $both = Link::factory()->create(['user_id' => $user->id]);
+    $both->attachTags(['laravel', 'cooking']);
+    $laravelOnly = Link::factory()->create(['user_id' => $user->id]);
+    $laravelOnly->attachTags(['laravel']);
+    $cookingOnly = Link::factory()->create(['user_id' => $user->id]);
+    $cookingOnly->attachTags(['cooking']);
     $unrelated = Link::factory()->create(['user_id' => $user->id]);
     $unrelated->attachTags(['gardening']);
 
@@ -82,7 +84,36 @@ test('filtering by several tags shows links matching any of them', function () {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('Links/Index')
-            ->has('links.data', 2)
+            ->has('links.data', 1)
+            ->where('links.data.0.id', $both->id)
+            ->has('filteredTags', 2));
+});
+
+test('a link carrying more than the filtered tags still matches', function () {
+    $user = User::factory()->create();
+    $link = Link::factory()->create(['user_id' => $user->id]);
+    $link->attachTags(['laravel', 'cooking', 'gardening']);
+
+    $this->actingAs($user)
+        ->get(route('links.index', ['tags' => ['laravel', 'cooking']]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Links/Index')
+            ->has('links.data', 1)
+            ->where('links.data.0.id', $link->id));
+});
+
+test('one unknown tag name empties a listing filtered by several tags', function () {
+    $user = User::factory()->create();
+    $link = Link::factory()->create(['user_id' => $user->id]);
+    $link->attachTags(['laravel']);
+
+    $this->actingAs($user)
+        ->get(route('links.index', ['tags' => ['laravel', 'deleted-tag']]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Links/Index')
+            ->has('links.data', 0)
             ->has('filteredTags', 2));
 });
 
