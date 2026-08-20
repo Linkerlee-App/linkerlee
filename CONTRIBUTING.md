@@ -16,7 +16,11 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Getting set up
 
-Prerequisites: PHP 8.3+, Composer, Node.js 22+.
+Prerequisites: PHP 8.4+, Composer, Node.js 22+.
+
+The 8.4 floor is not arbitrary — `symfony/http-client` and `symfony/mailgun-mailer` at `^8.0`
+both require PHP `>=8.4`, so `composer install` cannot resolve on 8.3. Please do not lower the
+constraint without downgrading those first.
 
 ```bash
 git clone https://github.com/linkerlee-app/linkerlee.git
@@ -119,7 +123,7 @@ against.
 
 Target `main`. Fill in the template: what changed, what you checked, and anything a
 deployment needs (migrations, a rebuild). CI runs Pint, ESLint, Prettier, `tsc` and the Pest
-suite across PHP 8.3, 8.4 and 8.5.
+suite across PHP 8.4 and 8.5.
 
 ## Project conventions
 

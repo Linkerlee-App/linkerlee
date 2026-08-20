@@ -6,7 +6,7 @@ LinkerLee is a bookmarking service that lets users save links and find them agai
 
 ## Tech Stack
 
-- **Backend**: Laravel 12, PHP 8.3
+- **Backend**: Laravel 12, PHP 8.4
 - **Bridge**: Inertia.js v2
 - **Database**: SQLite by default (`.env.example`); MySQL 8.0 supported and used in production
 - **Frontend**: React 19, TypeScript, Inertia.js

@@ -14,7 +14,7 @@
   <a href="https://github.com/linkerlee-app/linkerlee/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/linkerlee-app/linkerlee/actions/workflows/tests.yml/badge.svg"></a>
   <a href="https://github.com/linkerlee-app/linkerlee/actions/workflows/lint.yml"><img alt="Linter" src="https://github.com/linkerlee-app/linkerlee/actions/workflows/lint.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
-  <img alt="PHP ^8.3" src="https://img.shields.io/badge/php-%5E8.3-777bb4.svg">
+  <img alt="PHP ^8.4" src="https://img.shields.io/badge/php-%5E8.4-777bb4.svg">
   <img alt="Laravel 12" src="https://img.shields.io/badge/laravel-12-ff2d20.svg">
 </p>
 
@@ -106,7 +106,7 @@ origins, so a self-hosted instance works with it out of the box.
 
 | Layer | Choice |
 |---|---|
-| Backend | Laravel 12, PHP ^8.3 |
+| Backend | Laravel 12, PHP ^8.4 |
 | Bridge | Inertia.js v2 |
 | Frontend | React 19, TypeScript |
 | Styling | Tailwind CSS v4, Radix UI, shadcn/ui |
@@ -117,7 +117,7 @@ origins, so a self-hosted instance works with it out of the box.
 
 ## Quick start
 
-**Prerequisites:** PHP 8.3 or newer, [Composer](https://getcomposer.org), and Node.js 22+.
+**Prerequisites:** PHP 8.4 or newer, [Composer](https://getcomposer.org), and Node.js 22+.
 
 You do **not** need MySQL. LinkerLee defaults to SQLite, which needs no server.
 
