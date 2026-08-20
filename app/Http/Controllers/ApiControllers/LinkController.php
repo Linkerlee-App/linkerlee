@@ -130,9 +130,9 @@ class LinkController extends Controller
      *
      * Mirrors the web controller's destroy() so both paths leave the database in
      * the same state. Link soft-deletes, so the row is recoverable from the
-     * trash — though note spatie/laravel-tags detaches tags on the `deleted`
-     * event without a soft-delete guard, so a restored link comes back untagged
-     * here exactly as it does from the web app's own delete and archive.
+     * trash with its tags — Link::bootHasTags() overrides the package hook to
+     * detach only on a force delete. Group membership is not preserved: the
+     * detach below is unconditional, so a restored link comes back ungrouped.
      */
     public function destroy(Request $request, int $linkId): Response
     {
