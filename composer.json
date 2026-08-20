@@ -23,7 +23,7 @@
         "laravel/fortify": "^1.30",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.3",
-        "laravel/tinker": "^2.10.1",
+        "laravel/tinker": "^3.0.2",
         "laravel/wayfinder": "^0.1.9",
         "opcodesio/log-viewer": "^3.24",
         "spatie/laravel-searchable": "^1.13",
