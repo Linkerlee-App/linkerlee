@@ -22,6 +22,38 @@ class Link extends Model implements Searchable
         HasTags,
         SoftDeletes;
 
+    /**
+     * Replaces HasTags::bootHasTags to keep tags through a soft delete.
+     *
+     * The package's `deleted` hook detaches unconditionally, so archiving a link
+     * — which promises the link can be brought back — silently stripped its
+     * tags, and it came back bare. The `created` half is reproduced verbatim
+     * because overriding the boot method replaces it wholesale.
+     *
+     * On a force delete the tags still have to go, or the taggables rows outlive
+     * the row they point at.
+     */
+    public static function bootHasTags(): void
+    {
+        static::created(function (Model $taggableModel) {
+            if (count($taggableModel->queuedTags) === 0) {
+                return;
+            }
+
+            $taggableModel->attachTags($taggableModel->queuedTags);
+
+            $taggableModel->queuedTags = [];
+        });
+
+        static::deleted(function (Model $deletedModel) {
+            if (! $deletedModel->forceDeleting) {
+                return;
+            }
+
+            $deletedModel->detachTags($deletedModel->tags()->get());
+        });
+    }
+
     protected $fillable = [
         'title',
         'description',

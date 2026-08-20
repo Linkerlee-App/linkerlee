@@ -20,7 +20,7 @@ test('destroy soft-deletes the caller own link', function () {
     $this->assertSoftDeleted('links', ['id' => $link->id]);
 });
 
-test('destroy detaches the tags, as every other delete path in the app does', function () {
+test('destroy keeps the tags so a restored link comes back intact', function () {
     $user = User::factory()->create();
     $token = $user->createToken('ext', ['create'])->plainTextToken;
 
@@ -31,15 +31,17 @@ test('destroy detaches the tags, as every other delete path in the app does', fu
         ->deleteJson("/api/links/{$link->id}")
         ->assertNoContent();
 
-    // spatie/laravel-tags detaches on the `deleted` event with no soft-delete
-    // guard (HasTags::bootHasTags), so the tags go even though the row is only
-    // trashed — a link restored from the trash comes back untagged. That is
-    // pre-existing and applies equally to the web app's delete and archive
-    // actions; this test pins the behaviour so a change to it is deliberate.
     $trashed = Link::withTrashed()->with('tags')->find($link->id);
 
-    expect($trashed)->not->toBeNull();
-    expect($trashed->tags)->toHaveCount(0);
+    expect($trashed->tags->pluck('name')->all())
+        ->toContain('php')
+        ->toContain('laravel');
+
+    $trashed->restore();
+
+    expect($trashed->fresh('tags')->tags->pluck('name')->all())
+        ->toContain('php')
+        ->toContain('laravel');
 });
 
 test('destroy detaches the link from its groups', function () {
