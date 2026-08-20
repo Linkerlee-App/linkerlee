@@ -24,6 +24,6 @@ class HtmlBookmarkExportService
             ."<H1>Bookmarks</H1>\n"
             ."<DL><p>\n"
             ."{$items}"
-            ."</DL>";
+            .'</DL>';
     }
 }

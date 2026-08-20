@@ -31,12 +31,17 @@ export default function TagsIndex({ tags }: Props) {
                 <h1 className="text-xl font-semibold">Tags</h1>
 
                 {tags.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No tags yet.</p>
+                    <p className="text-sm text-muted-foreground">
+                        No tags yet.
+                    </p>
                 )}
 
                 <div className="flex flex-wrap gap-2">
                     {tags.map((tag) => (
-                        <div key={tag.id} className="flex items-center gap-1 rounded-full border border-border px-3 py-1">
+                        <div
+                            key={tag.id}
+                            className="flex items-center gap-1 rounded-full border border-border px-3 py-1"
+                        >
                             <span className="text-sm">{tag.name}</span>
                             <span
                                 className="rounded-full bg-accent px-1.5 text-xs text-muted-foreground"

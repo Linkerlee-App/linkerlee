@@ -44,7 +44,11 @@ interface Props {
     showUntaggedOnly: boolean;
 }
 
-export default function SingleGroupIndex({ group, links: paginator, publicLink }: Props) {
+export default function SingleGroupIndex({
+    group,
+    links: paginator,
+    publicLink,
+}: Props) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Links', href: linksRoute.index().url },
         { title: group.title, href: groupsRoute.show(group.id).url },
@@ -57,7 +61,12 @@ export default function SingleGroupIndex({ group, links: paginator, publicLink }
                 <div className="flex items-center justify-between">
                     <h1 className="text-xl font-semibold">{group.title}</h1>
                     {publicLink.link && (
-                        <a href={publicLink.link} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:underline">
+                        <a
+                            href={publicLink.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-500 hover:underline"
+                        >
                             Public link
                         </a>
                     )}
@@ -65,12 +74,22 @@ export default function SingleGroupIndex({ group, links: paginator, publicLink }
 
                 <div className="flex flex-col gap-2">
                     {paginator.data.length === 0 && (
-                        <p className="text-sm text-muted-foreground">No links in this collection.</p>
+                        <p className="text-sm text-muted-foreground">
+                            No links in this collection.
+                        </p>
                     )}
                     {paginator.data.map((link) => (
-                        <Link key={link.id} href={linksRoute.show(link.id).url} className="flex flex-col rounded-lg border border-border p-3 hover:bg-accent">
-                            <span className="font-medium">{link.title || link.link}</span>
-                            <span className="truncate text-sm text-muted-foreground">{link.link}</span>
+                        <Link
+                            key={link.id}
+                            href={linksRoute.show(link.id).url}
+                            className="flex flex-col rounded-lg border border-border p-3 hover:bg-accent"
+                        >
+                            <span className="font-medium">
+                                {link.title || link.link}
+                            </span>
+                            <span className="truncate text-sm text-muted-foreground">
+                                {link.link}
+                            </span>
                         </Link>
                     ))}
                 </div>
@@ -85,7 +104,9 @@ export default function SingleGroupIndex({ group, links: paginator, publicLink }
                         fallback={<div className="h-8" />}
                     >
                         <div className="flex justify-center py-4">
-                            <span className="text-sm text-muted-foreground">Loading more...</span>
+                            <span className="text-sm text-muted-foreground">
+                                Loading more...
+                            </span>
                         </div>
                     </WhenVisible>
                 )}

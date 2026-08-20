@@ -1,5 +1,12 @@
 import { router } from '@inertiajs/react';
-import { BookmarkCheck, ChevronDown, Search, Star, TagIcon, X } from 'lucide-react';
+import {
+    BookmarkCheck,
+    ChevronDown,
+    Search,
+    Star,
+    TagIcon,
+    X,
+} from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,20 +33,35 @@ interface FilterBarProps {
     allTags: TagOption[];
 }
 
-function buildParams(filters: LinkFilters): Record<string, string | number | string[]> {
+function buildParams(
+    filters: LinkFilters,
+): Record<string, string | number | string[]> {
     const params: Record<string, string | number | string[]> = {};
 
-    if (filters.searchString) { params.search = filters.searchString; }
-    if (filters.filteredTags.length > 0) { params.tags = filters.filteredTags.map((tag) => tag.name); }
-    if (filters.showFavoritesOnly) { params.favorite = 1; }
-    if (filters.showUnreadOnly) { params.unreadOnly = 1; }
-    if (filters.showUntaggedOnly) { params.untaggedOnly = 1; }
+    if (filters.searchString) {
+        params.search = filters.searchString;
+    }
+    if (filters.filteredTags.length > 0) {
+        params.tags = filters.filteredTags.map((tag) => tag.name);
+    }
+    if (filters.showFavoritesOnly) {
+        params.favorite = 1;
+    }
+    if (filters.showUnreadOnly) {
+        params.unreadOnly = 1;
+    }
+    if (filters.showUntaggedOnly) {
+        params.untaggedOnly = 1;
+    }
 
     return params;
 }
 
 export function navigateWithFilters(baseUrl: string, filters: LinkFilters) {
-    router.get(baseUrl, buildParams(filters), { preserveState: true, preserveScroll: true });
+    router.get(baseUrl, buildParams(filters), {
+        preserveState: true,
+        preserveScroll: true,
+    });
 }
 
 export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
@@ -70,7 +92,12 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
     const activeTags = pendingTags ?? filters.filteredTags;
 
     function apply(next: Partial<LinkFilters>) {
-        navigateWithFilters(baseUrl, { ...filters, searchString: search, filteredTags: activeTags, ...next });
+        navigateWithFilters(baseUrl, {
+            ...filters,
+            searchString: search,
+            filteredTags: activeTags,
+            ...next,
+        });
     }
 
     function applyTags(nextTags: FilterTag[], next: Partial<LinkFilters> = {}) {
@@ -80,7 +107,9 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
 
     function handleSearchChange(value: string) {
         setSearch(value);
-        if (debounce.current) { clearTimeout(debounce.current); }
+        if (debounce.current) {
+            clearTimeout(debounce.current);
+        }
         debounce.current = setTimeout(() => {
             debounce.current = null;
             navigateWithFilters(baseUrl, { ...filters, searchString: value });
@@ -105,11 +134,12 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
             : allTags.filter((tag) => tag.name.toLowerCase().includes(query));
     }, [allTags, tagQuery]);
 
-    const hasActiveFilters = filters.searchString !== ''
-        || activeTags.length > 0
-        || filters.showFavoritesOnly
-        || filters.showUnreadOnly
-        || filters.showUntaggedOnly;
+    const hasActiveFilters =
+        filters.searchString !== '' ||
+        activeTags.length > 0 ||
+        filters.showFavoritesOnly ||
+        filters.showUnreadOnly ||
+        filters.showUntaggedOnly;
 
     return (
         <div className="flex flex-col gap-2">
@@ -125,10 +155,18 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
                         aria-label="Search links"
                     />
                 </div>
-                <DropdownMenu onOpenChange={(open) => { if (! open) { setTagQuery(''); } }}>
+                <DropdownMenu
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setTagQuery('');
+                        }
+                    }}
+                >
                     <DropdownMenuTrigger asChild>
                         <Button
-                            variant={activeTags.length > 0 ? 'default' : 'outline'}
+                            variant={
+                                activeTags.length > 0 ? 'default' : 'outline'
+                            }
                             size="sm"
                             disabled={allTags.length === 0}
                         >
@@ -139,7 +177,10 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
                             <ChevronDown />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="max-h-80 w-56 overflow-y-auto">
+                    <DropdownMenuContent
+                        align="start"
+                        className="max-h-80 w-56 overflow-y-auto"
+                    >
                         <DropdownMenuLabel>Filter by tag</DropdownMenuLabel>
                         <p className="px-2 pb-1 text-xs font-normal text-muted-foreground">
                             Links must carry every tag picked.
@@ -156,13 +197,20 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
                             />
                         </div>
                         {matchingTags.length === 0 && (
-                            <p className="px-2 py-1.5 text-xs text-muted-foreground">No tags match.</p>
+                            <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                                No tags match.
+                            </p>
                         )}
                         {matchingTags.map((tag) => (
                             <DropdownMenuCheckboxItem
                                 key={tag.id}
-                                checked={activeTags.some((t) => t.name === tag.name)}
-                                onSelect={(e) => { e.preventDefault(); toggleTag(tag); }}
+                                checked={activeTags.some(
+                                    (t) => t.name === tag.name,
+                                )}
+                                onSelect={(e) => {
+                                    e.preventDefault();
+                                    toggleTag(tag);
+                                }}
                             >
                                 {tag.name}
                             </DropdownMenuCheckboxItem>
@@ -172,16 +220,24 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
                 <Button
                     variant={filters.showFavoritesOnly ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => apply({ showFavoritesOnly: ! filters.showFavoritesOnly })}
+                    onClick={() =>
+                        apply({ showFavoritesOnly: !filters.showFavoritesOnly })
+                    }
                     aria-pressed={filters.showFavoritesOnly}
                 >
-                    <Star className={filters.showFavoritesOnly ? '' : 'text-yellow-500'} />
+                    <Star
+                        className={
+                            filters.showFavoritesOnly ? '' : 'text-yellow-500'
+                        }
+                    />
                     Favorites
                 </Button>
                 <Button
                     variant={filters.showUnreadOnly ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => apply({ showUnreadOnly: ! filters.showUnreadOnly })}
+                    onClick={() =>
+                        apply({ showUnreadOnly: !filters.showUnreadOnly })
+                    }
                     aria-pressed={filters.showUnreadOnly}
                 >
                     <BookmarkCheck />
@@ -190,10 +246,11 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
                 <Button
                     variant={filters.showUntaggedOnly ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => applyTags(
-                        filters.showUntaggedOnly ? activeTags : [],
-                        { showUntaggedOnly: ! filters.showUntaggedOnly },
-                    )}
+                    onClick={() =>
+                        applyTags(filters.showUntaggedOnly ? activeTags : [], {
+                            showUntaggedOnly: !filters.showUntaggedOnly,
+                        })
+                    }
                     aria-pressed={filters.showUntaggedOnly}
                 >
                     <TagIcon />
@@ -224,19 +281,31 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
             {activeTags.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-xs text-muted-foreground">
-                        {activeTags.length > 1 ? 'Tagged with all of:' : 'Tagged with:'}
+                        {activeTags.length > 1
+                            ? 'Tagged with all of:'
+                            : 'Tagged with:'}
                     </span>
                     {activeTags.map((tag) => (
                         <button
                             key={tag.name}
                             type="button"
-                            onClick={() => applyTags(activeTags.filter((t) => t.name !== tag.name))}
-                            className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs hover:opacity-80 ${tag.id === null
-                                ? 'border border-dashed border-destructive text-destructive line-through'
-                                : 'bg-primary text-primary-foreground'}`}
-                            title={tag.id === null
-                                ? `${tag.name} is not one of your tags, so nothing can match it — click to drop it`
-                                : `Stop filtering by ${tag.name}`}
+                            onClick={() =>
+                                applyTags(
+                                    activeTags.filter(
+                                        (t) => t.name !== tag.name,
+                                    ),
+                                )
+                            }
+                            className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs hover:opacity-80 ${
+                                tag.id === null
+                                    ? 'border border-dashed border-destructive text-destructive line-through'
+                                    : 'bg-primary text-primary-foreground'
+                            }`}
+                            title={
+                                tag.id === null
+                                    ? `${tag.name} is not one of your tags, so nothing can match it — click to drop it`
+                                    : `Stop filtering by ${tag.name}`
+                            }
                         >
                             {tag.name}
                             <X className="size-3" />

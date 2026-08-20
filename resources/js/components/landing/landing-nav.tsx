@@ -11,7 +11,11 @@ export function LandingNav({ user, canRegister = true }: Props) {
     return (
         <header className="sticky top-0 z-40 border-b border-[#1a141014] bg-[#fff8ec]/80 backdrop-blur dark:border-white/10 dark:bg-[#0a0a0a]/80">
             <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
-                <Link href="/" aria-label="Linkerlee home" className="flex items-center">
+                <Link
+                    href="/"
+                    aria-label="Linkerlee home"
+                    className="flex items-center"
+                >
                     <img
                         src="/linkerlee-logo-light.svg"
                         alt="Linkerlee"

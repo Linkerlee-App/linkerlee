@@ -72,13 +72,13 @@ export function LandingFeatures() {
         >
             <div className="mx-auto w-full max-w-6xl px-6">
                 <div className="mx-auto max-w-2xl text-center">
-                    <h2 className="text-balance text-3xl font-semibold tracking-tight text-[#1a1410] sm:text-4xl dark:text-white">
+                    <h2 className="text-3xl font-semibold tracking-tight text-balance text-[#1a1410] sm:text-4xl dark:text-white">
                         Everything you need. Nothing you don&apos;t.
                     </h2>
                     <p className="mt-4 text-[#1a1410]/60 dark:text-white/60">
-                        Linkerlee is a focused bookmarking tool. No social feed, no
-                        recommendations, no algorithm. Just your links, organized the way
-                        you think.
+                        Linkerlee is a focused bookmarking tool. No social feed,
+                        no recommendations, no algorithm. Just your links,
+                        organized the way you think.
                     </p>
                 </div>
 

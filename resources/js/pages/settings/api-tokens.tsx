@@ -54,7 +54,9 @@ export default function ApiTokens({ tokens, plainTextToken }: Props) {
     };
 
     const deleteToken = (id: number) => {
-        if (!confirm('Revoke this token? Any client using it will lose access.')) {
+        if (
+            !confirm('Revoke this token? Any client using it will lose access.')
+        ) {
             return;
         }
         router.delete(ApiTokenController.destroy.url({ tokenId: id }), {
@@ -167,9 +169,11 @@ export default function ApiTokens({ tokens, plainTextToken }: Props) {
                                             {token.name}
                                         </p>
                                         <p className="text-xs text-muted-foreground">
-                                            Created {formatDate(token.created_at)}
+                                            Created{' '}
+                                            {formatDate(token.created_at)}
                                             {' · '}
-                                            Last used {formatDate(token.last_used_at)}
+                                            Last used{' '}
+                                            {formatDate(token.last_used_at)}
                                         </p>
                                     </div>
                                     <Button

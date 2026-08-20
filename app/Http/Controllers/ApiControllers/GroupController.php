@@ -15,7 +15,7 @@ class GroupController extends Controller
         return Group::orderBy('title')
             ->filterByCurrentUser()
             ->get()
-            ->transform(fn(Group $group) => [
+            ->transform(fn (Group $group) => [
                 'id' => $group->id,
                 'title' => $group->title,
             ])

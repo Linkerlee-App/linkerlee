@@ -18,8 +18,8 @@ export function LandingFooter() {
                             className="hidden h-8 w-auto dark:block"
                         />
                         <p className="mt-4 max-w-xs text-sm text-[#1a1410]/60 dark:text-white/60">
-                            A focused bookmarking tool for people who save a lot of links and
-                            want to find them again.
+                            A focused bookmarking tool for people who save a lot
+                            of links and want to find them again.
                         </p>
                     </div>
 
@@ -34,8 +34,16 @@ export function LandingFooter() {
                     <FooterColumn
                         title="Account"
                         links={[
-                            { label: 'Sign up', href: register().url, inertia: true },
-                            { label: 'Log in', href: login().url, inertia: true },
+                            {
+                                label: 'Sign up',
+                                href: register().url,
+                                inertia: true,
+                            },
+                            {
+                                label: 'Log in',
+                                href: login().url,
+                                inertia: true,
+                            },
                         ]}
                     />
                     <FooterColumn
@@ -43,13 +51,19 @@ export function LandingFooter() {
                         links={[
                             { label: 'Privacy', href: '/privacy' },
                             { label: 'Terms', href: '/terms' },
-                            { label: 'Contact', href: 'mailto:hello@linkerlee.com' },
+                            {
+                                label: 'Contact',
+                                href: 'mailto:hello@linkerlee.com',
+                            },
                         ]}
                     />
                 </div>
 
                 <div className="mt-12 flex flex-col items-start justify-between gap-4 border-t border-[#1a141010] pt-6 text-xs text-[#1a1410]/50 sm:flex-row sm:items-center dark:border-white/10 dark:text-white/40">
-                    <p>© {new Date().getFullYear()} Linkerlee. All rights reserved.</p>
+                    <p>
+                        © {new Date().getFullYear()} Linkerlee. All rights
+                        reserved.
+                    </p>
                     <p>Made with care for people with too many tabs open.</p>
                 </div>
             </div>
@@ -59,10 +73,16 @@ export function LandingFooter() {
 
 type FooterLink = { label: string; href: string; inertia?: boolean };
 
-function FooterColumn({ title, links }: { title: string; links: FooterLink[] }) {
+function FooterColumn({
+    title,
+    links,
+}: {
+    title: string;
+    links: FooterLink[];
+}) {
     return (
         <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-[#1a1410]/50 dark:text-white/40">
+            <h4 className="text-xs font-semibold tracking-wider text-[#1a1410]/50 uppercase dark:text-white/40">
                 {title}
             </h4>
             <ul className="mt-4 space-y-2.5 text-sm">

@@ -42,8 +42,16 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-export default function Dashboard({ stats, popularTags, recentLinks, linksPerDay }: Props) {
-    const maxCount = linksPerDay.length > 0 ? Math.max(...linksPerDay.map((d) => d.count)) : 1;
+export default function Dashboard({
+    stats,
+    popularTags,
+    recentLinks,
+    linksPerDay,
+}: Props) {
+    const maxCount =
+        linksPerDay.length > 0
+            ? Math.max(...linksPerDay.map((d) => d.count))
+            : 1;
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -51,35 +59,60 @@ export default function Dashboard({ stats, popularTags, recentLinks, linksPerDay
             <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto p-4">
                 <div className="grid gap-4 md:grid-cols-3">
                     <div className="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
-                        <p className="text-sm text-muted-foreground">Total Links</p>
-                        <p className="mt-1 text-3xl font-semibold">{stats.totalLinks}</p>
+                        <p className="text-sm text-muted-foreground">
+                            Total Links
+                        </p>
+                        <p className="mt-1 text-3xl font-semibold">
+                            {stats.totalLinks}
+                        </p>
                     </div>
                     <div className="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
-                        <p className="text-sm text-muted-foreground">Collections</p>
-                        <p className="mt-1 text-3xl font-semibold">{stats.totalGroups}</p>
+                        <p className="text-sm text-muted-foreground">
+                            Collections
+                        </p>
+                        <p className="mt-1 text-3xl font-semibold">
+                            {stats.totalGroups}
+                        </p>
                     </div>
                     <div className="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
-                        <p className="text-sm text-muted-foreground">Favorited</p>
-                        <p className="mt-1 text-3xl font-semibold">{stats.favoritedLinks}</p>
+                        <p className="text-sm text-muted-foreground">
+                            Favorited
+                        </p>
+                        <p className="mt-1 text-3xl font-semibold">
+                            {stats.favoritedLinks}
+                        </p>
                     </div>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
                     <div className="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
-                        <h2 className="mb-3 text-sm font-medium">Popular Tags</h2>
+                        <h2 className="mb-3 text-sm font-medium">
+                            Popular Tags
+                        </h2>
                         {popularTags.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">No tags yet.</p>
+                            <p className="text-sm text-muted-foreground">
+                                No tags yet.
+                            </p>
                         ) : (
                             <ul className="flex flex-col gap-2">
                                 {popularTags.map((tag) => (
                                     <li key={tag.name}>
                                         <Link
-                                            href={linksRoute.index({ query: { tags: [tag.name] } }).url}
+                                            href={
+                                                linksRoute.index({
+                                                    query: { tags: [tag.name] },
+                                                }).url
+                                            }
                                             className="flex items-center justify-between rounded-md px-1 py-0.5 hover:bg-accent/50"
                                             title={`Show links tagged "${tag.name}"`}
                                         >
-                                            <span className="rounded-full bg-accent px-2 py-0.5 text-xs">{tag.name}</span>
-                                            <span className="text-sm text-muted-foreground">{tag.count} link{tag.count !== 1 ? 's' : ''}</span>
+                                            <span className="rounded-full bg-accent px-2 py-0.5 text-xs">
+                                                {tag.name}
+                                            </span>
+                                            <span className="text-sm text-muted-foreground">
+                                                {tag.count} link
+                                                {tag.count !== 1 ? 's' : ''}
+                                            </span>
                                         </Link>
                                     </li>
                                 ))}
@@ -88,16 +121,27 @@ export default function Dashboard({ stats, popularTags, recentLinks, linksPerDay
                     </div>
 
                     <div className="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
-                        <h2 className="mb-3 text-sm font-medium">Recent Links</h2>
+                        <h2 className="mb-3 text-sm font-medium">
+                            Recent Links
+                        </h2>
                         {recentLinks.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">No links yet.</p>
+                            <p className="text-sm text-muted-foreground">
+                                No links yet.
+                            </p>
                         ) : (
                             <ul className="flex flex-col gap-2">
                                 {recentLinks.map((link) => (
                                     <li key={link.id}>
-                                        <Link href={linksRoute.show(link.id).url} className="flex flex-col hover:underline">
-                                            <span className="text-sm font-medium">{link.title || link.link}</span>
-                                            <span className="text-xs text-muted-foreground">{link.created_at}</span>
+                                        <Link
+                                            href={linksRoute.show(link.id).url}
+                                            className="flex flex-col hover:underline"
+                                        >
+                                            <span className="text-sm font-medium">
+                                                {link.title || link.link}
+                                            </span>
+                                            <span className="text-xs text-muted-foreground">
+                                                {link.created_at}
+                                            </span>
                                         </Link>
                                     </li>
                                 ))}
@@ -108,13 +152,17 @@ export default function Dashboard({ stats, popularTags, recentLinks, linksPerDay
 
                 {linksPerDay.length > 0 && (
                     <div className="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
-                        <h2 className="mb-3 text-sm font-medium">Links Added (Last 30 Days)</h2>
+                        <h2 className="mb-3 text-sm font-medium">
+                            Links Added (Last 30 Days)
+                        </h2>
                         <div className="flex h-24 items-end gap-0.5">
                             {linksPerDay.map((day) => (
                                 <div
                                     key={day.date}
                                     className="flex-1 rounded-sm bg-primary opacity-80"
-                                    style={{ height: `${(day.count / maxCount) * 100}%` }}
+                                    style={{
+                                        height: `${(day.count / maxCount) * 100}%`,
+                                    }}
                                     title={`${day.date}: ${day.count} link${day.count !== 1 ? 's' : ''}`}
                                 />
                             ))}
