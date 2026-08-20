@@ -5,7 +5,7 @@ import { CreateLinkForm } from '@/components/links/create-link-form';
 import { FilterBar, navigateWithFilters, type LinkFilters } from '@/components/links/filter-bar';
 import { LinkCard } from '@/components/links/link-card';
 import { LinkDetailView } from '@/components/links/link-detail';
-import type { CursorPaginator, GroupOption, LinkItem, TagOption } from '@/components/links/types';
+import type { CursorPaginator, FilterTag, GroupOption, LinkItem, TagOption } from '@/components/links/types';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import AppLayout from '@/layouts/app-layout';
@@ -15,7 +15,7 @@ import type { BreadcrumbItem } from '@/types';
 interface Props {
     links: CursorPaginator<LinkItem>;
     searchString: string;
-    filteredTags: TagOption[];
+    filteredTags: FilterTag[];
     showUntaggedOnly: boolean;
     showUnreadOnly: boolean;
     showFavoritesOnly: boolean;
@@ -62,8 +62,12 @@ export default function LinksIndex({
     }
 
     function handleTagClick(tag: TagOption) {
-        if (! filters.filteredTags.some((t) => t.id === tag.id)) {
-            navigateWithFilters(baseUrl, { ...filters, filteredTags: [...filters.filteredTags, tag] });
+        if (! filters.filteredTags.some((t) => t.name === tag.name)) {
+            navigateWithFilters(baseUrl, {
+                ...filters,
+                filteredTags: [...filters.filteredTags, tag],
+                showUntaggedOnly: false,
+            });
         }
     }
 
@@ -76,7 +80,7 @@ export default function LinksIndex({
                     <Button onClick={() => setCreateOpen(true)}>Add Link</Button>
                 </div>
 
-                <FilterBar baseUrl={baseUrl} filters={filters} />
+                <FilterBar baseUrl={baseUrl} filters={filters} allTags={allTags} />
 
                 <BulkBar
                     selectedIds={selectedIds}

@@ -31,12 +31,14 @@ class TagController extends Controller
     public function index(): Response
     {
         return Inertia::render('Tags/Index', [
-            'tags' => Tag::orderBy('name')
+            'tags' => Tag::orderByName()
                 ->filterByCurrentUser()
+                ->withCount(['links' => fn (Builder $query) => $query->filterByCurrentUser()])
                 ->get()
                 ->transform(fn (Tag $tag) => [
                     'id' => $tag->id,
                     'name' => $tag->name,
+                    'links_count' => $tag->links_count,
                 ]),
         ]);
     }
@@ -108,7 +110,7 @@ class TagController extends Controller
      */
     public static function getAllTags(): array
     {
-        return Tag::orderBy('name')
+        return Tag::orderByName()
             ->filterByCurrentUser()
             ->get()
             ->transform(fn (Tag $tag) => [
@@ -120,10 +122,17 @@ class TagController extends Controller
 
     /**
      * Returns tags by their names.
+     *
+     * @param  array<int, string>  $names
+     * @return array<int, array{id: int, name: string}>
      */
     public static function getTagsByNames(array $names): array
     {
-        $locale = $locale ?? Tag::getLocale();
+        if ($names === []) {
+            return [];
+        }
+
+        $locale = Tag::getLocale();
 
         return Tag::filterByCurrentUser()
             ->where(function (Builder $query) use ($names, $locale) {

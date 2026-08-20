@@ -3,6 +3,15 @@ export interface TagOption {
     name: string;
 }
 
+/**
+ * An active tag filter. `id` is null when the name no longer matches a tag
+ * (renamed or deleted), which still filters the listing and stays visible.
+ */
+export interface FilterTag {
+    id: number | null;
+    name: string;
+}
+
 export interface GroupOption {
     id: number;
     title: string;
