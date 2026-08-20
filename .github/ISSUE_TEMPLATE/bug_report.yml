@@ -1,0 +1,83 @@
+name: Bug report
+description: Something in LinkerLee does not work the way it should
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Bugs in the **browser extension** belong in
+        [its own repository](https://github.com/linkerlee-app/linkerlee-browser-extension/issues).
+
+        Found a security problem? Do not file it here — see [SECURITY.md](../blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected instead.
+      placeholder: I saved a link with a very long URL and got a 500 instead of the link.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The smallest sequence that triggers it.
+      placeholder: |
+        1. Go to Links → Add link
+        2. Paste a URL longer than 2048 characters
+        3. Save
+        4. See the error
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Where are you running LinkerLee?
+      options:
+        - linkerlee.com (hosted)
+        - Self-hosted
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: For self-hosted, the commit SHA (`git rev-parse --short HEAD`). Skip for the hosted instance.
+      placeholder: 412e7f1
+
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database
+      description: Self-hosted only.
+      options:
+        - SQLite
+        - MySQL
+        - Not applicable / hosted
+
+  - type: input
+    id: php-version
+    attributes:
+      label: PHP version
+      description: Self-hosted only — `php -v`.
+      placeholder: '8.3.13'
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      description: If the bug is in the UI.
+      placeholder: Firefox 142 on macOS
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: |
+        From `storage/logs/laravel.log` or the browser console.
+        **Redact API tokens, inbox addresses and personal URLs before pasting.**
+      render: shell

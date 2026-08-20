@@ -14,7 +14,15 @@ interface TagPickerProps {
     suggestedTags?: TagOption[];
 }
 
-export function TagPicker({ allTags, selectedIds, newTags, onToggle, onAddNew, onRemoveNew, suggestedTags = [] }: TagPickerProps) {
+export function TagPicker({
+    allTags,
+    selectedIds,
+    newTags,
+    onToggle,
+    onAddNew,
+    onRemoveNew,
+    suggestedTags = [],
+}: TagPickerProps) {
     const [input, setInput] = useState('');
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -22,18 +30,29 @@ export function TagPicker({ allTags, selectedIds, newTags, onToggle, onAddNew, o
 
     const visibleTags = useMemo(() => {
         const selected = allTags.filter((tag) => selectedIds.includes(tag.id));
-        const suggestedUnselected = suggestedTags.filter((tag) => ! selectedIds.includes(tag.id));
-        const rest = allTags.filter((tag) =>
-            ! selectedIds.includes(tag.id)
-            && ! suggestedUnselected.some((s) => s.id === tag.id)
-            && (query === '' || tag.name.toLowerCase().includes(query)),
+        const suggestedUnselected = suggestedTags.filter(
+            (tag) => !selectedIds.includes(tag.id),
+        );
+        const rest = allTags.filter(
+            (tag) =>
+                !selectedIds.includes(tag.id) &&
+                !suggestedUnselected.some((s) => s.id === tag.id) &&
+                (query === '' || tag.name.toLowerCase().includes(query)),
         );
 
         return {
             selected,
-            suggested: query === '' ? suggestedUnselected : suggestedUnselected.filter((tag) => tag.name.toLowerCase().includes(query)),
+            suggested:
+                query === ''
+                    ? suggestedUnselected
+                    : suggestedUnselected.filter((tag) =>
+                          tag.name.toLowerCase().includes(query),
+                      ),
             rest: query === '' ? rest.slice(0, MAX_VISIBLE_UNSELECTED) : rest,
-            hiddenCount: query === '' ? Math.max(0, rest.length - MAX_VISIBLE_UNSELECTED) : 0,
+            hiddenCount:
+                query === ''
+                    ? Math.max(0, rest.length - MAX_VISIBLE_UNSELECTED)
+                    : 0,
         };
     }, [allTags, selectedIds, suggestedTags, query]);
 
@@ -48,7 +67,9 @@ export function TagPicker({ allTags, selectedIds, newTags, onToggle, onAddNew, o
 
         onToggle(id);
 
-        if (! isRemoval) { setInput(''); }
+        if (!isRemoval) {
+            setInput('');
+        }
     }
 
     /**
@@ -58,22 +79,32 @@ export function TagPicker({ allTags, selectedIds, newTags, onToggle, onAddNew, o
      * own instead of selecting the tag they were reaching for.
      */
     function handleBlur(e: React.FocusEvent<HTMLDivElement>) {
-        if (containerRef.current?.contains(e.relatedTarget)) { return; }
+        if (containerRef.current?.contains(e.relatedTarget)) {
+            return;
+        }
 
         addNew(input);
     }
 
     function addNew(name: string) {
         const trimmed = name.trim();
-        if (trimmed.length < 2) { return; }
-        if (newTags.some((name) => name.toLowerCase() === trimmed.toLowerCase())) {
+        if (trimmed.length < 2) {
+            return;
+        }
+        if (
+            newTags.some((name) => name.toLowerCase() === trimmed.toLowerCase())
+        ) {
             setInput('');
 
             return;
         }
-        const existing = allTags.find((tag) => tag.name.toLowerCase() === trimmed.toLowerCase());
+        const existing = allTags.find(
+            (tag) => tag.name.toLowerCase() === trimmed.toLowerCase(),
+        );
         if (existing) {
-            if (! selectedIds.includes(existing.id)) { onToggle(existing.id); }
+            if (!selectedIds.includes(existing.id)) {
+                onToggle(existing.id);
+            }
             setInput('');
             return;
         }
@@ -92,7 +123,11 @@ export function TagPicker({ allTags, selectedIds, newTags, onToggle, onAddNew, o
         `rounded-full border px-2.5 py-0.5 text-xs transition-colors ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-border'}`;
 
     return (
-        <div ref={containerRef} onBlur={handleBlur} className="flex flex-col gap-1.5">
+        <div
+            ref={containerRef}
+            onBlur={handleBlur}
+            className="flex flex-col gap-1.5"
+        >
             <Label>Tags</Label>
             <div className="flex flex-wrap gap-1.5">
                 {visibleTags.selected.map((tag) => (
@@ -107,7 +142,10 @@ export function TagPicker({ allTags, selectedIds, newTags, onToggle, onAddNew, o
                     </button>
                 ))}
                 {newTags.map((name) => (
-                    <span key={name} className="flex items-center gap-1 rounded-full border border-dashed border-primary px-2.5 py-0.5 text-xs text-primary">
+                    <span
+                        key={name}
+                        className="flex items-center gap-1 rounded-full border border-dashed border-primary px-2.5 py-0.5 text-xs text-primary"
+                    >
                         {name}
                         <button
                             type="button"
@@ -154,7 +192,7 @@ export function TagPicker({ allTags, selectedIds, newTags, onToggle, onAddNew, o
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Search or add a tag…"
-                className="mt-1 w-full rounded-md border border-border bg-transparent px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                className="mt-1 w-full rounded-md border border-border bg-transparent px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:ring-1 focus:ring-ring focus:outline-none"
             />
         </div>
     );

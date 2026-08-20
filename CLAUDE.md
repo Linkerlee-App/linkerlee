@@ -1,46 +1,55 @@
-# LinkerLee - A simple bookmarking service built with Laravel 12 and React 19
+# LinkerLee - A bookmarking service built with Laravel 12 and React 19
 
 ## Project Overview
 
-LinkerLee is a simple bookmarking service that allows users to save and organize their favorite links. Users can create collections, add tags, and share their bookmarks with others. The application is built using Laravel 12 for the backend and React 19 with Inertia.js for the frontend. It uses TypeScript for type safety and Radix UI for accessible UI components. Authentication is handled by Laravel Fortify, and Tailwind CSS v4 is used for styling, with Vite as the build tool. Pest is used for testing.
+LinkerLee is a bookmarking service that lets users save links and find them again. A saved link is enriched in the background with its title, description, favicon and preview image; users organise links with tags and with groups that can be either explicit collections or saved tag queries. The application is built using Laravel 12 for the backend and React 19 with Inertia.js for the frontend. It uses TypeScript for type safety and Radix UI for accessible UI components. Authentication is handled by Laravel Fortify, and Tailwind CSS v4 is used for styling, with Vite as the build tool. Pest is used for testing.
 
 ## Tech Stack
 
-- **Backend**: Laravel 12, PHP 8.3
-- **Bridge**: Inertia.js
-- **Database**: MySQL 8.0
-- **Frontend**: React 18, TypeScript, Inertia.js
-- **UI Components**: Radix UI + shadcn/ui + Tailwind CSS
+- **Backend**: Laravel 12, PHP 8.4
+- **Bridge**: Inertia.js v2
+- **Database**: SQLite by default (`.env.example`); MySQL 8.0 supported and used in production
+- **Frontend**: React 19, TypeScript, Inertia.js
+- **UI Components**: Radix UI + shadcn/ui + Tailwind CSS v4
 - **Authentication**: Laravel Fortify with 2FA support
+- **API auth**: Laravel Sanctum personal access tokens
 - **Build Tool**: Vite
 - **Domain**: linkerlee.com
 
+Note the database split: the Pest suite runs on in-memory SQLite (`phpunit.xml`), so
+MySQL-only behaviour — the `links_content_fulltext` index, column-length enforcement,
+collation — cannot be proven by the test suite. Verify those against MySQL directly.
+
 ## Key Features
 
-- Bookmark creation with title, URL, description, and tags
-- Collections for organizing bookmarks
-- Tagging system for easy filtering
-- Sharing bookmarks and collections with other users
-- Search functionality for bookmarks
-- Responsive design for mobile and desktop
-- User authentication with optional two-factor authentication
-- Analytics dashboard showing bookmark activity and popular tags
-- Webhooks for real-time notifications of bookmark events (e.g., new bookmark added, bookmark shared)
-- Bookmark import/export functionality (e.g., from browser bookmarks)
-- Bookmark archiving and deletion with soft deletes
-- Bookmark metadata fetching (e.g., fetching title and description from URL)
-- Bookmark favoriting and rating system
-- Bookmark commenting and discussion threads
-- Bookmark version history and change tracking
-- Bookmark scheduling for future publication or reminders
-- Bookmark API for third-party integrations and automation
-- Bookmark browser extensions for quick saving and access (planned for future development)
-- Bookmark mobile app for iOS and Android (planned for future development)
+These are the features that exist. Anything not on this list is not built; see the
+Roadmap in [README.md](README.md) for what is merely intended.
+
+- Link creation with title, URL and description, plus per-user duplicate detection
+- Background metadata enrichment (title, description, favicon, preview image, page text)
+  via the queued `FetchLinkMetadataJob` — a queue worker is required for this
+- URLs up to 2048 characters (`Link::MAX_URL_LENGTH`); titles up to 255
+- Tagging via spatie/laravel-tags, with tag filtering across the links, dashboard and tags views
+- Tag suggestions derived from the fetched page text (`SuggestTagController`)
+- Groups: nested via `parent_group_id`, and "smart" via and/or/not tag rules in `query_options`
+- Inbox view for links that still need filing
+- Search across links and groups (MySQL full-text where available, `LIKE` otherwise)
+- Favourites, 1-5 ratings, and read/unread state (`read_at`)
+- Bulk editing of links
+- Archiving, soft-delete trash, restore and force delete
+- Public read-only share pages for a link or a group (`/share/{shareId}`)
+- Import/export of Netscape-format browser bookmark files
+- Save-by-email: a per-user inbox token address handled by a Mailgun inbound webhook
+- REST API for third-party integrations, consumed by the official browser extension
+- Fortify auth with email verification, password reset and TOTP two-factor
+- Light/dark appearance, and account data deletion
 
 ## Documentation
 
 - **API Reference**: [docs/API.md](docs/API.md) - Complete REST API documentation
 - **OpenAPI Spec**: [docs/openapi.yaml](docs/openapi.yaml) - Import into Postman, Insomnia, or Swagger UI
+- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md) - setup, definition of done, PR workflow
+- **Browser extension**: <https://github.com/linkerlee-app/linkerlee-browser-extension>
 
 ## Directory Structure
 
@@ -50,13 +59,16 @@ app/
 ├── Concerns/                 # Shared traits
 ├── Http/
 │   ├── Controllers/          # Route handlers
-│   │   ├── Internal/         # Internal API (Postfix/milter)
+│   │   ├── ApiControllers/   # Token-authenticated REST API
+│   │   ├── Internal/         # Mailgun inbound webhook
 │   │   └── Settings/         # User settings
 │   ├── Middleware/           # Request middleware
 │   ├── Requests/             # Form request validation
 │   └── Resources/            # API resources
+├── Jobs/                     # Queued jobs (FetchLinkMetadataJob)
 ├── Models/                   # Eloquent models
 ├── Services/                 # Business logic services
+├── Support/                  # Pure helpers (InboundEmailParser)
 └── Providers/                # Service providers
 
 resources/js/
@@ -65,14 +77,22 @@ resources/js/
 ├── hooks/                    # React custom hooks
 ├── layouts/                  # Layout components
 ├── pages/                    # Inertia page components
+│   ├── Groups/               # Group list
+│   ├── Inbox/                # Links still to file
+│   ├── Links/                # Index, create, trash
+│   ├── PublicLink/           # Share management and public share page
+│   ├── SingleGroup/          # One group
+│   ├── SingleLink/           # One link
+│   ├── Tags/                 # Tag list
 │   ├── auth/                 # Authentication pages
-│   ├── settings/             # Settings pages
-│   └── email-aliases/        # Email alias management
-├── routes/                   # Wayfinder generated routes
+│   └── settings/             # Settings pages
+├── routes/                   # Wayfinder generated routes (gitignored)
 └── types/                    # TypeScript type definitions
 
 routes/
 ├── web.php                   # Main web routes
+├── api.php                   # Token-authenticated REST API
+├── console.php               # Console commands and schedule
 └── settings.php              # Settings routes
 ```
 
@@ -81,8 +101,8 @@ routes/
 1. **Inertia.js**: Single-page app feel with server-side routing
 2. **Wayfinder**: Auto-generates TypeScript route helpers from Laravel routes
 3. **Form Requests**: Validation logic in dedicated request classes
-4. **Services**: Complex business logic in service classes (e.g., EmailMaskService)
-5. **Internal API**: Separate endpoints for server-side email processing (Postfix/milter)
+4. **Services**: Complex business logic in service classes (e.g. `LinkCreationService`, `GroupService`, `BulkEditingService`, `HtmlBookmarkImportService`)
+5. **Internal API**: A signature-verified Mailgun inbound webhook turns forwarded email into links
 6. **API Resources**: Consistent JSON responses for frontend consumption
 
 ### Testing
@@ -108,11 +128,15 @@ php artisan test tests/Feature/Auth/AuthenticationTest.php
 # Format specific files/directories
 ./vendor/bin/pint app/Http/Controllers
 
-# Run PHPStan static analysis
-./vendor/bin/phpstan analyse
+# Check formatting without changing files (what CI runs)
+composer test:lint
 
-# Lint TypeScript/React code
+# Lint TypeScript/React code (fixes in place)
 npm run lint
+
+# Check without fixing (what CI runs)
+npm run lint:check
+npm run format:check
 ```
 
 ### Database
@@ -136,8 +160,12 @@ npm run dev
 npm run build
 
 # Type check TypeScript
-npm run type-check
+npm run types
 ```
+
+Wayfinder output (`resources/js/actions`, `routes`, `wayfinder`) is generated and
+gitignored. On a fresh clone, run `php artisan wayfinder:generate` (or any Vite build)
+before `npm run types`, or TypeScript cannot resolve the `@/actions` and `@/routes` imports.
 
 ### Queue Management
 ```bash
@@ -162,7 +190,7 @@ php artisan queue:listen --tries=1
 - **React 19** with **TypeScript** for type-safe component development
 - **Inertia.js** connects Laravel backend to React frontend without building a separate API
 - **Radix UI** primitives provide accessible, unstyled components for custom styling
-- **TanStack Query** for server state management and data fetching patterns
+- Server state arrives as Inertia page props; there is no client-side data-fetching library
 - **Tailwind CSS v4** for styling via Vite plugin
 - Asset pipeline managed by **Vite** with Laravel plugin and HMR support
 
@@ -180,7 +208,10 @@ php artisan queue:listen --tries=1
 - Authentication and settings routes are grouped with appropriate middleware
 
 ### Database
-- **MySQL 8.0+** for both development and production (for parity)
+- **SQLite** by default for local development (`.env.example`), and in-memory SQLite for tests
+- **MySQL 8.0+** in production, and required for the `links_content_fulltext` index —
+  the metadata migration creates it only on the `mysql` driver, so full-text search
+  degrades to `LIKE` elsewhere
 - Migrations in `database/migrations/`
 - Seeders in `database/seeders/`
 - Factories in `database/factories/`
@@ -242,7 +273,8 @@ When modifying authentication flows, be aware that Fortify handles the backend l
 The application uses database queues by default. Queue jobs should be processed via `php artisan queue:work` or `queue:listen`. The `composer dev` command automatically starts a queue listener.
 
 ### Tailwind CSS v4
-Uses the new Tailwind v4 via Vite plugin. Configuration is in `tailwind.config.js` and custom theme tokens in CSS files.
+Uses the new Tailwind v4 via the `@tailwindcss/vite` plugin. There is no `tailwind.config.js` —
+v4 is configured in CSS, with the theme tokens in `resources/css/app.css`.
 
 ===
 

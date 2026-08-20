@@ -27,13 +27,10 @@ const faqs = [
 
 export function LandingFAQ() {
     return (
-        <section
-            id="faq"
-            className="bg-[#fff8ec] py-20 dark:bg-[#0a0a0a]"
-        >
+        <section id="faq" className="bg-[#fff8ec] py-20 dark:bg-[#0a0a0a]">
             <div className="mx-auto w-full max-w-3xl px-6">
                 <div className="text-center">
-                    <h2 className="text-balance text-3xl font-semibold tracking-tight text-[#1a1410] sm:text-4xl dark:text-white">
+                    <h2 className="text-3xl font-semibold tracking-tight text-balance text-[#1a1410] sm:text-4xl dark:text-white">
                         Questions, answered.
                     </h2>
                     <p className="mt-4 text-[#1a1410]/60 dark:text-white/60">

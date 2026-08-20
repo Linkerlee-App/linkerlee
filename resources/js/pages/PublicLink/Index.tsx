@@ -35,19 +35,34 @@ export default function PublicLinkIndex({ publicLinks }: Props) {
                 <h1 className="text-xl font-semibold">Shared Links</h1>
 
                 {publicLinks.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No shared links yet.</p>
+                    <p className="text-sm text-muted-foreground">
+                        No shared links yet.
+                    </p>
                 )}
 
                 <div className="flex flex-col gap-2">
                     {publicLinks.map((pl) => (
-                        <div key={pl.id} className="flex items-center justify-between rounded-lg border border-border p-3">
+                        <div
+                            key={pl.id}
+                            className="flex items-center justify-between rounded-lg border border-border p-3"
+                        >
                             <div className="flex flex-col gap-0.5">
-                                <span className="font-medium">{pl.group.title}</span>
-                                <a href={pl.link} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:underline">
+                                <span className="font-medium">
+                                    {pl.group.title}
+                                </span>
+                                <a
+                                    href={pl.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-blue-500 hover:underline"
+                                >
                                     {pl.link}
                                 </a>
                             </div>
-                            <button onClick={() => handleDelete(pl.id)} className="text-xs text-muted-foreground hover:text-destructive">
+                            <button
+                                onClick={() => handleDelete(pl.id)}
+                                className="text-xs text-muted-foreground hover:text-destructive"
+                            >
                                 Remove
                             </button>
                         </div>

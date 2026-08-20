@@ -7,7 +7,10 @@ const popularTags = [
     { name: 'ai', count: 16 },
 ];
 
-const chartBars = [3, 5, 2, 4, 7, 6, 9, 5, 8, 11, 7, 6, 9, 12, 8, 6, 10, 14, 9, 7, 11, 13, 8, 10, 15, 12, 9, 11, 14, 17];
+const chartBars = [
+    3, 5, 2, 4, 7, 6, 9, 5, 8, 11, 7, 6, 9, 12, 8, 6, 10, 14, 9, 7, 11, 13, 8,
+    10, 15, 12, 9, 11, 14, 17,
+];
 
 export function LandingPreview() {
     const max = Math.max(...chartBars);
@@ -16,15 +19,15 @@ export function LandingPreview() {
         <section className="bg-[#fff8ec] py-20 dark:bg-[#0a0a0a]">
             <div className="mx-auto w-full max-w-6xl px-6">
                 <div className="mx-auto mb-14 max-w-2xl text-center">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-[#c97208] dark:text-[#ffc266]">
+                    <span className="text-xs font-semibold tracking-wider text-[#c97208] uppercase dark:text-[#ffc266]">
                         Your dashboard
                     </span>
-                    <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-[#1a1410] sm:text-4xl dark:text-white">
+                    <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance text-[#1a1410] sm:text-4xl dark:text-white">
                         A weekly heartbeat for your library.
                     </h2>
                     <p className="mt-4 text-[#1a1410]/60 dark:text-white/60">
-                        See what you&apos;ve saved, what you&apos;re reading about, and which
-                        tags are heating up.
+                        See what you&apos;ve saved, what you&apos;re reading
+                        about, and which tags are heating up.
                     </p>
                 </div>
 
@@ -32,9 +35,21 @@ export function LandingPreview() {
                     {/* stat row */}
                     <div className="grid gap-4 sm:grid-cols-3">
                         {[
-                            { label: 'Total links', value: '247', sub: '+12 this week' },
-                            { label: 'Collections', value: '12', sub: '3 public' },
-                            { label: 'Favorited', value: '38', sub: '15% of all links' },
+                            {
+                                label: 'Total links',
+                                value: '247',
+                                sub: '+12 this week',
+                            },
+                            {
+                                label: 'Collections',
+                                value: '12',
+                                sub: '3 public',
+                            },
+                            {
+                                label: 'Favorited',
+                                value: '38',
+                                sub: '15% of all links',
+                            },
                         ].map((s) => (
                             <div
                                 key={s.label}
@@ -69,7 +84,9 @@ export function LandingPreview() {
                                     <div
                                         key={i}
                                         className="flex-1 rounded-t bg-gradient-to-t from-[#fba115] to-[#ffc266]"
-                                        style={{ height: `${(v / max) * 100}%` }}
+                                        style={{
+                                            height: `${(v / max) * 100}%`,
+                                        }}
                                     />
                                 ))}
                             </div>
@@ -89,7 +106,7 @@ export function LandingPreview() {
                                         <span className="inline-flex items-center rounded-full bg-[#fff8ec] px-2.5 py-0.5 text-xs font-medium text-[#c97208] dark:bg-[#fba115]/15 dark:text-[#ffc266]">
                                             #{t.name}
                                         </span>
-                                        <span className="text-xs tabular-nums text-[#1a1410]/50 dark:text-white/40">
+                                        <span className="text-xs text-[#1a1410]/50 tabular-nums dark:text-white/40">
                                             {t.count}
                                         </span>
                                     </li>

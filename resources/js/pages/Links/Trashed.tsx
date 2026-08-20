@@ -39,7 +39,9 @@ export default function LinksTrashed({ links }: Props) {
     }
 
     function handleForceDelete() {
-        if (deleteTarget === null) { return; }
+        if (deleteTarget === null) {
+            return;
+        }
         router.delete(linksRoute.forceDestroy(deleteTarget.id).url, {
             preserveScroll: true,
             onSuccess: () => setDeleteTarget(null),
@@ -59,7 +61,11 @@ export default function LinksTrashed({ links }: Props) {
                 <div className="flex items-center justify-between gap-2">
                     <h1 className="text-xl font-semibold">Trash</h1>
                     {links.length > 0 && (
-                        <Button variant="destructive" size="sm" onClick={() => setConfirmEmpty(true)}>
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => setConfirmEmpty(true)}
+                        >
                             <Trash2 />
                             Empty trash
                         </Button>
@@ -67,22 +73,41 @@ export default function LinksTrashed({ links }: Props) {
                 </div>
 
                 {links.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No archived links.</p>
+                    <p className="text-sm text-muted-foreground">
+                        No archived links.
+                    </p>
                 ) : (
                     <div className="flex flex-col gap-2">
                         {links.map((link) => (
-                            <div key={link.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+                            <div
+                                key={link.id}
+                                className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
+                            >
                                 <div className="flex min-w-0 flex-col">
-                                    <span className="truncate font-medium">{link.title || link.link}</span>
-                                    <span className="truncate text-sm text-muted-foreground">{link.link}</span>
-                                    <span className="text-xs text-muted-foreground">Archived {link.deleted_at}</span>
+                                    <span className="truncate font-medium">
+                                        {link.title || link.link}
+                                    </span>
+                                    <span className="truncate text-sm text-muted-foreground">
+                                        {link.link}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                        Archived {link.deleted_at}
+                                    </span>
                                 </div>
                                 <div className="flex shrink-0 gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => handleRestore(link.id)}>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleRestore(link.id)}
+                                    >
                                         <RotateCcw />
                                         Restore
                                     </Button>
-                                    <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(link)}>
+                                    <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={() => setDeleteTarget(link)}
+                                    >
                                         <Trash2 />
                                         Delete forever
                                     </Button>
@@ -93,17 +118,35 @@ export default function LinksTrashed({ links }: Props) {
                 )}
             </div>
 
-            <Dialog open={deleteTarget !== null} onOpenChange={(open) => { if (! open) { setDeleteTarget(null); } }}>
+            <Dialog
+                open={deleteTarget !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setDeleteTarget(null);
+                    }
+                }}
+            >
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Delete this link forever?</DialogTitle>
                         <DialogDescription>
-                            "{deleteTarget?.title || deleteTarget?.link}" will be permanently removed. This cannot be undone.
+                            "{deleteTarget?.title || deleteTarget?.link}" will
+                            be permanently removed. This cannot be undone.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-                        <Button variant="destructive" onClick={handleForceDelete}>Delete forever</Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => setDeleteTarget(null)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleForceDelete}
+                        >
+                            Delete forever
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -113,12 +156,24 @@ export default function LinksTrashed({ links }: Props) {
                     <DialogHeader>
                         <DialogTitle>Empty the trash?</DialogTitle>
                         <DialogDescription>
-                            All {links.length} trashed link{links.length > 1 ? 's' : ''} will be permanently removed. This cannot be undone.
+                            All {links.length} trashed link
+                            {links.length > 1 ? 's' : ''} will be permanently
+                            removed. This cannot be undone.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setConfirmEmpty(false)}>Cancel</Button>
-                        <Button variant="destructive" onClick={handleEmptyTrash}>Empty trash</Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => setConfirmEmpty(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleEmptyTrash}
+                        >
+                            Empty trash
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

@@ -1,0 +1,52 @@
+name: Feature request
+description: Suggest something LinkerLee should do
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the Roadmap in the [README](../blob/main/README.md#roadmap) first — some of the
+        obvious gaps are already known and intended.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the situation, not the solution. This is the part that matters most.
+      placeholder: I save a lot of long reads and lose track of which ones I have actually finished.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to happen?
+      description: Your proposed solution, if you have one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you have considered
+      description: Including any workaround you are using today.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Where does this belong?
+      options:
+        - The LinkerLee app
+        - The browser extension
+        - The API
+        - Not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Would you be willing to work on this?
+      options:
+        - label: I would be interested in opening a PR for it
+          required: false

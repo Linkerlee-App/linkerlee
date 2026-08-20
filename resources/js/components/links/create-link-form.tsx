@@ -16,7 +16,11 @@ interface CreateLinkFormProps {
     onSuccess: () => void;
 }
 
-export function CreateLinkForm({ allTags, allGroups, onSuccess }: CreateLinkFormProps) {
+export function CreateLinkForm({
+    allTags,
+    allGroups,
+    onSuccess,
+}: CreateLinkFormProps) {
     const form = useForm({
         link: '',
         title: '',
@@ -30,15 +34,21 @@ export function CreateLinkForm({ allTags, allGroups, onSuccess }: CreateLinkForm
     const lastSuggestedFor = useRef<string>('');
 
     function toggleTag(id: number) {
-        form.setData('tags', form.data.tags.includes(id)
-            ? form.data.tags.filter((t) => t !== id)
-            : [...form.data.tags, id]);
+        form.setData(
+            'tags',
+            form.data.tags.includes(id)
+                ? form.data.tags.filter((t) => t !== id)
+                : [...form.data.tags, id],
+        );
     }
 
     function toggleGroup(id: number) {
-        form.setData('groups', form.data.groups.includes(id)
-            ? form.data.groups.filter((g) => g !== id)
-            : [...form.data.groups, id]);
+        form.setData(
+            'groups',
+            form.data.groups.includes(id)
+                ? form.data.groups.filter((g) => g !== id)
+                : [...form.data.groups, id],
+        );
     }
 
     async function fetchSuggestions() {
@@ -52,7 +62,9 @@ export function CreateLinkForm({ allTags, allGroups, onSuccess }: CreateLinkForm
         lastSuggestedFor.current = url;
 
         try {
-            const { data } = await axios.post<TagOption[]>(suggestTags().url, { link: normalized });
+            const { data } = await axios.post<TagOption[]>(suggestTags().url, {
+                link: normalized,
+            });
             setSuggestedTags(data);
         } catch {
             setSuggestedTags([]);
@@ -65,7 +77,10 @@ export function CreateLinkForm({ allTags, allGroups, onSuccess }: CreateLinkForm
     }
 
     return (
-        <form onSubmit={submit} className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+        <form
+            onSubmit={submit}
+            className="flex flex-1 flex-col gap-4 overflow-y-auto p-4"
+        >
             <div className="flex flex-col gap-1.5">
                 <Label htmlFor="create-link">URL *</Label>
                 <Input
@@ -82,7 +97,10 @@ export function CreateLinkForm({ allTags, allGroups, onSuccess }: CreateLinkForm
 
             <div className="flex flex-col gap-1.5">
                 <Label htmlFor="create-title">
-                    Title <span className="text-muted-foreground text-xs">(optional, fetched automatically)</span>
+                    Title{' '}
+                    <span className="text-xs text-muted-foreground">
+                        (optional, fetched automatically)
+                    </span>
                 </Label>
                 <Input
                     id="create-title"
@@ -96,15 +114,20 @@ export function CreateLinkForm({ allTags, allGroups, onSuccess }: CreateLinkForm
 
             <div className="flex flex-col gap-1.5">
                 <Label htmlFor="create-description">
-                    Description <span className="text-muted-foreground text-xs">(optional, fetched automatically)</span>
+                    Description{' '}
+                    <span className="text-xs text-muted-foreground">
+                        (optional, fetched automatically)
+                    </span>
                 </Label>
                 <textarea
                     id="create-description"
                     value={form.data.description}
-                    onChange={(e) => form.setData('description', e.target.value)}
+                    onChange={(e) =>
+                        form.setData('description', e.target.value)
+                    }
                     placeholder="What's this link about?"
                     rows={3}
-                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:ring-1 focus:ring-ring focus:outline-none"
                 />
                 <InputError message={form.errors.description} />
             </div>
@@ -114,8 +137,15 @@ export function CreateLinkForm({ allTags, allGroups, onSuccess }: CreateLinkForm
                 selectedIds={form.data.tags}
                 newTags={form.data.newTags}
                 onToggle={toggleTag}
-                onAddNew={(name) => form.setData('newTags', [...form.data.newTags, name])}
-                onRemoveNew={(name) => form.setData('newTags', form.data.newTags.filter((t) => t !== name))}
+                onAddNew={(name) =>
+                    form.setData('newTags', [...form.data.newTags, name])
+                }
+                onRemoveNew={(name) =>
+                    form.setData(
+                        'newTags',
+                        form.data.newTags.filter((t) => t !== name),
+                    )
+                }
                 suggestedTags={suggestedTags}
             />
 

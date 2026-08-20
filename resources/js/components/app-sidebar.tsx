@@ -1,5 +1,14 @@
 import { Link } from '@inertiajs/react';
-import { FolderOpen, Inbox, LayoutGrid, Link2, Share2, Star, Tag, Trash2 } from 'lucide-react';
+import {
+    FolderOpen,
+    Inbox,
+    LayoutGrid,
+    Link2,
+    Share2,
+    Star,
+    Tag,
+    Trash2,
+} from 'lucide-react';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import {

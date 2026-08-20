@@ -70,11 +70,12 @@ export function LandingPricing() {
         >
             <div className="mx-auto w-full max-w-6xl px-6">
                 <div className="mx-auto max-w-2xl text-center">
-                    <h2 className="text-balance text-3xl font-semibold tracking-tight text-[#1a1410] sm:text-4xl dark:text-white">
+                    <h2 className="text-3xl font-semibold tracking-tight text-balance text-[#1a1410] sm:text-4xl dark:text-white">
                         Pricing that doesn&apos;t get in the way.
                     </h2>
                     <p className="mt-4 text-[#1a1410]/60 dark:text-white/60">
-                        Start free. Upgrade when you want the extras. Cancel any time.
+                        Start free. Upgrade when you want the extras. Cancel any
+                        time.
                     </p>
                 </div>
 
@@ -93,7 +94,7 @@ export function LandingPricing() {
                                     {t.badge}
                                 </span>
                             )}
-                            <h3 className="text-sm font-semibold uppercase tracking-wider text-[#c97208] dark:text-[#ffc266]">
+                            <h3 className="text-sm font-semibold tracking-wider text-[#c97208] uppercase dark:text-[#ffc266]">
                                 {t.name}
                             </h3>
                             <div className="mt-3 flex items-baseline gap-1">

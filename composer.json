@@ -1,15 +1,24 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/react-starter-kit",
+    "name": "andreifiroiu/linkerlee",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "A self-hostable bookmark manager: save links, organise them with tags and smart groups, and find them again.",
     "keywords": [
+        "bookmarks",
+        "bookmark-manager",
         "laravel",
-        "framework"
+        "inertia",
+        "react",
+        "self-hosted"
     ],
     "license": "MIT",
+    "homepage": "https://linkerlee.com",
+    "support": {
+        "issues": "https://github.com/linkerlee-app/linkerlee/issues",
+        "source": "https://github.com/linkerlee-app/linkerlee"
+    },
     "require": {
-        "php": "^8.3",
+        "php": "^8.4",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/fortify": "^1.30",
         "laravel/framework": "^12.0",

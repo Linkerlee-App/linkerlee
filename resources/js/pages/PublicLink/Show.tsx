@@ -28,7 +28,9 @@ export default function PublicLinkShow({ title, links: paginator }: Props) {
 
                 <div className="flex flex-col gap-2">
                     {paginator.data.length === 0 && (
-                        <p className="text-sm text-muted-foreground">No links in this collection.</p>
+                        <p className="text-sm text-muted-foreground">
+                            No links in this collection.
+                        </p>
                     )}
                     {paginator.data.map((link) => (
                         <a
@@ -38,8 +40,12 @@ export default function PublicLinkShow({ title, links: paginator }: Props) {
                             rel="noopener noreferrer"
                             className="flex flex-col rounded-lg border border-border p-3 hover:bg-accent"
                         >
-                            <span className="font-medium">{link.title || link.link}</span>
-                            <span className="truncate text-sm text-muted-foreground">{link.link}</span>
+                            <span className="font-medium">
+                                {link.title || link.link}
+                            </span>
+                            <span className="truncate text-sm text-muted-foreground">
+                                {link.link}
+                            </span>
                         </a>
                     ))}
                 </div>
@@ -54,7 +60,9 @@ export default function PublicLinkShow({ title, links: paginator }: Props) {
                         fallback={<div className="h-8" />}
                     >
                         <div className="flex justify-center py-4">
-                            <span className="text-sm text-muted-foreground">Loading more...</span>
+                            <span className="text-sm text-muted-foreground">
+                                Loading more...
+                            </span>
                         </div>
                     </WhenVisible>
                 )}

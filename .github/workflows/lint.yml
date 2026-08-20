@@ -3,19 +3,17 @@ name: linter
 on:
   push:
     branches:
-      - develop
       - main
-      - master
-      - workos
   pull_request:
     branches:
-      - develop
       - main
-      - master
-      - workos
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   quality:
@@ -27,23 +25,37 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
       - name: Install Dependencies
         run: |
-          composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+          composer install -q --no-ansi --no-interaction --no-progress --prefer-dist
           npm install
 
-      - name: Run Pint
-        run: composer lint
+      # Wayfinder output is gitignored, but ~20 components import from @/actions and
+      # @/routes. Without generating it first, tsc cannot resolve those imports.
+      # --with-form matches `formVariants: true` in vite.config.ts; without it the
+      # .form() helpers the auth pages use are missing.
+      - name: Generate Wayfinder routes
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan wayfinder:generate --with-form
 
-      - name: Format Frontend
-        run: npm run format
+      - name: Check PHP formatting
+        run: composer test:lint
 
-      - name: Lint Frontend
-        run: npm run lint
+      - name: Check types
+        run: npm run types
 
-      # - name: Commit Changes
-      #   uses: stefanzweifel/git-auto-commit-action@v7
-      #   with:
-      #     commit_message: fix code style
-      #     commit_options: '--no-verify'
+      - name: Lint frontend
+        run: npm run lint:check
+
+      - name: Check frontend formatting
+        run: npm run format:check

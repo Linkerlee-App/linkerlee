@@ -55,17 +55,17 @@ export function LandingHero({ user, canRegister = true }: Props) {
                         <span className="inline-block size-1.5 rounded-full bg-[#fba115]" />
                         Built for people with too many open tabs
                     </span>
-                    <h1 className="mt-6 text-balance text-5xl font-semibold leading-[1.05] tracking-tight text-[#1a1410] sm:text-6xl lg:text-7xl dark:text-white">
+                    <h1 className="mt-6 text-5xl leading-[1.05] font-semibold tracking-tight text-balance text-[#1a1410] sm:text-6xl lg:text-7xl dark:text-white">
                         Your bookmarks,
                         <br />
                         <span className="bg-gradient-to-br from-[#fba115] via-[#ffb347] to-[#e8890a] bg-clip-text text-transparent">
                             finally organized.
                         </span>
                     </h1>
-                    <p className="mx-auto mt-6 max-w-xl text-pretty text-lg text-[#1a1410]/70 dark:text-white/70">
-                        Save any link, tag it, drop it in a smart group, share it. Linkerlee
-                        turns the chaos of saved tabs into a library you&apos;ll actually
-                        come back to.
+                    <p className="mx-auto mt-6 max-w-xl text-lg text-pretty text-[#1a1410]/70 dark:text-white/70">
+                        Save any link, tag it, drop it in a smart group, share
+                        it. Linkerlee turns the chaos of saved tabs into a
+                        library you&apos;ll actually come back to.
                     </p>
                     <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                         {user ? (
@@ -148,9 +148,14 @@ export function LandingHero({ user, canRegister = true }: Props) {
                                                             {l.title}
                                                         </h4>
                                                         <span className="shrink-0 text-xs text-[#fba115]">
-                                                            {'★'.repeat(l.rating)}
+                                                            {'★'.repeat(
+                                                                l.rating,
+                                                            )}
                                                             <span className="text-[#1a141020] dark:text-white/15">
-                                                                {'★'.repeat(5 - l.rating)}
+                                                                {'★'.repeat(
+                                                                    5 -
+                                                                        l.rating,
+                                                                )}
                                                             </span>
                                                         </span>
                                                     </div>

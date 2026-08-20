@@ -1,6 +1,13 @@
 import { router } from '@inertiajs/react';
 import axios from 'axios';
-import { FolderMinus, FolderPlus, Tag as TagIcon, TagsIcon, Trash2, X } from 'lucide-react';
+import {
+    FolderMinus,
+    FolderPlus,
+    Tag as TagIcon,
+    TagsIcon,
+    Trash2,
+    X,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,7 +28,12 @@ import {
 import { bulkEditLinks } from '@/routes';
 import type { GroupOption, TagOption } from './types';
 
-type BulkAction = 'add_tags' | 'remove_tags' | 'add_to_groups' | 'remove_from_groups' | 'delete';
+type BulkAction =
+    | 'add_tags'
+    | 'remove_tags'
+    | 'add_to_groups'
+    | 'remove_from_groups'
+    | 'delete';
 
 interface BulkBarProps {
     selectedIds: number[];
@@ -31,7 +43,13 @@ interface BulkBarProps {
     reloadProps?: string[];
 }
 
-export function BulkBar({ selectedIds, allTags, allGroups, onClearSelection, reloadProps = ['links'] }: BulkBarProps) {
+export function BulkBar({
+    selectedIds,
+    allTags,
+    allGroups,
+    onClearSelection,
+    reloadProps = ['links'],
+}: BulkBarProps) {
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [busy, setBusy] = useState(false);
 
@@ -39,7 +57,11 @@ export function BulkBar({ selectedIds, allTags, allGroups, onClearSelection, rel
         return null;
     }
 
-    async function run(action: BulkAction, tagIds: number[] = [], groupIds: number[] = []) {
+    async function run(
+        action: BulkAction,
+        tagIds: number[] = [],
+        groupIds: number[] = [],
+    ) {
         setBusy(true);
         try {
             await axios.post(bulkEditLinks().url, {
@@ -66,7 +88,11 @@ export function BulkBar({ selectedIds, allTags, allGroups, onClearSelection, rel
 
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={busy || allTags.length === 0}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy || allTags.length === 0}
+                    >
                         <TagIcon />
                         Add tag
                     </Button>
@@ -74,7 +100,10 @@ export function BulkBar({ selectedIds, allTags, allGroups, onClearSelection, rel
                 <DropdownMenuContent className="max-h-72 overflow-y-auto">
                     <DropdownMenuLabel>Add tag to selection</DropdownMenuLabel>
                     {allTags.map((tag) => (
-                        <DropdownMenuItem key={tag.id} onSelect={() => run('add_tags', [tag.id])}>
+                        <DropdownMenuItem
+                            key={tag.id}
+                            onSelect={() => run('add_tags', [tag.id])}
+                        >
                             {tag.name}
                         </DropdownMenuItem>
                     ))}
@@ -83,15 +112,24 @@ export function BulkBar({ selectedIds, allTags, allGroups, onClearSelection, rel
 
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={busy || allTags.length === 0}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy || allTags.length === 0}
+                    >
                         <TagsIcon />
                         Remove tag
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="max-h-72 overflow-y-auto">
-                    <DropdownMenuLabel>Remove tag from selection</DropdownMenuLabel>
+                    <DropdownMenuLabel>
+                        Remove tag from selection
+                    </DropdownMenuLabel>
                     {allTags.map((tag) => (
-                        <DropdownMenuItem key={tag.id} onSelect={() => run('remove_tags', [tag.id])}>
+                        <DropdownMenuItem
+                            key={tag.id}
+                            onSelect={() => run('remove_tags', [tag.id])}
+                        >
                             {tag.name}
                         </DropdownMenuItem>
                     ))}
@@ -108,9 +146,16 @@ export function BulkBar({ selectedIds, allTags, allGroups, onClearSelection, rel
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="max-h-72 overflow-y-auto">
-                            <DropdownMenuLabel>Add selection to collection</DropdownMenuLabel>
+                            <DropdownMenuLabel>
+                                Add selection to collection
+                            </DropdownMenuLabel>
                             {allGroups.map((group) => (
-                                <DropdownMenuItem key={group.id} onSelect={() => run('add_to_groups', [], [group.id])}>
+                                <DropdownMenuItem
+                                    key={group.id}
+                                    onSelect={() =>
+                                        run('add_to_groups', [], [group.id])
+                                    }
+                                >
                                     {group.title}
                                 </DropdownMenuItem>
                             ))}
@@ -125,9 +170,20 @@ export function BulkBar({ selectedIds, allTags, allGroups, onClearSelection, rel
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="max-h-72 overflow-y-auto">
-                            <DropdownMenuLabel>Remove selection from collection</DropdownMenuLabel>
+                            <DropdownMenuLabel>
+                                Remove selection from collection
+                            </DropdownMenuLabel>
                             {allGroups.map((group) => (
-                                <DropdownMenuItem key={group.id} onSelect={() => run('remove_from_groups', [], [group.id])}>
+                                <DropdownMenuItem
+                                    key={group.id}
+                                    onSelect={() =>
+                                        run(
+                                            'remove_from_groups',
+                                            [],
+                                            [group.id],
+                                        )
+                                    }
+                                >
                                     {group.title}
                                 </DropdownMenuItem>
                             ))}
@@ -146,7 +202,12 @@ export function BulkBar({ selectedIds, allTags, allGroups, onClearSelection, rel
                 <Trash2 />
                 Move to trash
             </Button>
-            <Button variant="ghost" size="sm" onClick={onClearSelection} disabled={busy}>
+            <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClearSelection}
+                disabled={busy}
+            >
                 <X />
                 Clear
             </Button>
@@ -154,14 +215,27 @@ export function BulkBar({ selectedIds, allTags, allGroups, onClearSelection, rel
             <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Move {selectedIds.length} link{selectedIds.length > 1 ? 's' : ''} to trash?</DialogTitle>
+                        <DialogTitle>
+                            Move {selectedIds.length} link
+                            {selectedIds.length > 1 ? 's' : ''} to trash?
+                        </DialogTitle>
                         <DialogDescription>
-                            The selected links will be archived. You can restore them from the trash view.
+                            The selected links will be archived. You can restore
+                            them from the trash view.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setConfirmDelete(false)}>Cancel</Button>
-                        <Button variant="destructive" onClick={() => run('delete')} disabled={busy}>
+                        <Button
+                            variant="outline"
+                            onClick={() => setConfirmDelete(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() => run('delete')}
+                            disabled={busy}
+                        >
                             Move to trash
                         </Button>
                     </DialogFooter>

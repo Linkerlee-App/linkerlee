@@ -1,6 +1,10 @@
 import { Head } from '@inertiajs/react';
 import { LinkDetailView } from '@/components/links/link-detail';
-import type { GroupOption, LinkItem, TagOption } from '@/components/links/types';
+import type {
+    GroupOption,
+    LinkItem,
+    TagOption,
+} from '@/components/links/types';
 import AppLayout from '@/layouts/app-layout';
 import * as linksRoute from '@/routes/links';
 import type { BreadcrumbItem } from '@/types';
