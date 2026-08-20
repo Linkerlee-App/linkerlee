@@ -125,6 +125,41 @@ class LinkController extends Controller
         return response()->json($this->presentLink($link->fresh('tags')));
     }
 
+    /**
+     * Remove a link belonging to the authenticated user.
+     *
+     * Mirrors the web controller's destroy() so both paths leave the database in
+     * the same state. Link soft-deletes, so the row is recoverable from the
+     * trash — though note spatie/laravel-tags detaches tags on the `deleted`
+     * event without a soft-delete guard, so a restored link comes back untagged
+     * here exactly as it does from the web app's own delete and archive.
+     */
+    public function destroy(Request $request, int $linkId): Response
+    {
+        // The extension's tokens are minted with only the 'create' ability
+        // (Settings\ApiTokenController), so that is what authorizes this too —
+        // a dedicated 'delete' ability would reject every token already issued.
+        if (! $request->user()->tokenCan('create')) {
+            abort(403);
+        }
+
+        // Scoped by owner, and 404 rather than 403 for someone else's link, so a
+        // caller cannot probe which ids exist.
+        $link = Link::where('user_id', Auth::id())->find($linkId);
+
+        if ($link === null) {
+            abort(404);
+        }
+
+        $link->groups()->detach();
+
+        $link->delete();
+
+        $this->groupService->updateUserGroupsLinkCount(Auth::user());
+
+        return response()->noContent();
+    }
+
     private function presentLink(Link $link): array
     {
         return [

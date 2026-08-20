@@ -29,5 +29,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/links', [LinkController::class, 'store']);
     Route::get('/links/find', [LinkController::class, 'find']);
     Route::put('/links/{linkId}', [LinkController::class, 'update']);
+    Route::delete('/links/{linkId}', [LinkController::class, 'destroy']);
     Route::post('/suggest-tags', SuggestTagController::class);
 });
