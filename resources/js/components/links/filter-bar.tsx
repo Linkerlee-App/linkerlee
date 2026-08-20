@@ -141,6 +141,9 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="max-h-80 w-56 overflow-y-auto">
                         <DropdownMenuLabel>Filter by tag</DropdownMenuLabel>
+                        <p className="px-2 pb-1 text-xs font-normal text-muted-foreground">
+                            Links must carry every tag picked.
+                        </p>
                         <div className="px-1 pb-1">
                             <Input
                                 type="search"
@@ -220,14 +223,20 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
 
             {activeTags.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground">Tags:</span>
+                    <span className="text-xs text-muted-foreground">
+                        {activeTags.length > 1 ? 'Tagged with all of:' : 'Tagged with:'}
+                    </span>
                     {activeTags.map((tag) => (
                         <button
                             key={tag.name}
                             type="button"
                             onClick={() => applyTags(activeTags.filter((t) => t.name !== tag.name))}
-                            className="flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-xs text-primary-foreground hover:opacity-80"
-                            title={`Stop filtering by ${tag.name}`}
+                            className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs hover:opacity-80 ${tag.id === null
+                                ? 'border border-dashed border-destructive text-destructive line-through'
+                                : 'bg-primary text-primary-foreground'}`}
+                            title={tag.id === null
+                                ? `${tag.name} is not one of your tags, so nothing can match it — click to drop it`
+                                : `Stop filtering by ${tag.name}`}
                         >
                             {tag.name}
                             <X className="size-3" />
