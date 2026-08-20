@@ -27,7 +27,7 @@ folder tree, and a year later you cannot remember which folder.
 
 LinkerLee makes a different bet. Paste a URL and it fetches the title, description, favicon
 and preview image in the background, so you never file a bare link. You tag it once, and
-**groups** assemble views of your links from tag rules — a link can belong to "Reading",
+**collections** assemble views of your links from tag rules — a link can belong to "Reading",
 "Rust" and "This week" at the same time without being copied into three folders.
 
 No social feed, no recommendations, no algorithm. Your links, organised the way you organise.
@@ -37,12 +37,10 @@ licensed and self-hostable — see [Quick start](#quick-start).
 
 ## Screenshots
 
-> **Note:** screenshots pending. See [docs/screenshots/README.md](docs/screenshots/README.md).
-
 | | |
 |---|---|
-| ![Links](docs/screenshots/links.png)<br>*The links view* | ![Link detail](docs/screenshots/link-detail.png)<br>*A single link* |
-| ![Smart group](docs/screenshots/smart-group.png)<br>*A group built from tag rules* | ![API tokens](docs/screenshots/api-tokens.png)<br>*Settings → API tokens* |
+| [![Links](docs/screenshots/links.png)](docs/screenshots/links.png)<br>**Your links** — search across title, URL and page content, then narrow by tag, favourite, unread or untagged. | [![Dashboard](docs/screenshots/dashboard.png)](docs/screenshots/dashboard.png)<br>**Dashboard** — totals, your most-used tags, what you saved recently. |
+| [![Link detail](docs/screenshots/link-detail.png)](docs/screenshots/link-detail.png)<br>**A link up close** — rate it, mark it read, favourite it, archive it. | [![Editing a link](docs/screenshots/link-edit.png)](docs/screenshots/link-edit.png)<br>**Tagging** — pick from every tag you have, or type a new one. |
 
 ## Browser extension
 
@@ -61,6 +59,11 @@ Pairing it with an instance:
    and paste the token.
 3. Click **Test connection**.
 
+[![Settings → API tokens](docs/screenshots/api-tokens.png)](docs/screenshots/api-tokens.png)
+
+The token value is shown once, at creation. Revoke any you no longer use — a token grants
+write **and delete** access to your links.
+
 The extension talks to the endpoints described in [docs/API.md](docs/API.md) — chiefly
 `GET /api/links/find` to detect an already-saved page and `POST /api/suggest-tags` for the
 tag suggestions. `config/cors.php` already allows `chrome-extension://` and `moz-extension://`
@@ -78,12 +81,12 @@ origins, so a self-hosted instance works with it out of the box.
 **Organising**
 - Tags, with filtering from the links, dashboard and tags views
 - Tag suggestions derived from the page's own text
-- Groups: nested into a hierarchy, **and** definable as saved tag queries using
-  and / or / not rules
+- Collections: nested into a hierarchy, **and** definable as saved tag queries using
+  and / or / not rules *(the code and the API call these `groups`)*
 - An Inbox view for links that still need filing
 
 **Working through**
-- Search across links and groups (full-text on MySQL, `LIKE` elsewhere)
+- Search across links and collections (full-text on MySQL, `LIKE` elsewhere)
 - Favourites, 1–5 star ratings, read/unread state
 - Bulk editing across many links at once
 
