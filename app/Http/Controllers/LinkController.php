@@ -29,15 +29,13 @@ class LinkController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(array $filteredTags = []): Response
+    public function index(): Response
     {
         $searchString = Request::get('search') ?? '';
-        $filteredTags = Request::get('tags') ?? '';
+        $filteredTags = $this->requestedTagNames();
         $showUntaggedOnly = Request::boolean('untaggedOnly');
         $showUnreadOnly = Request::boolean('unreadOnly');
         $showFavoritesOnly = Request::boolean('favorite');
-
-        $filteredTags = empty($filteredTags) ? [] : explode(',', $filteredTags);
 
         return Inertia::render('Links/Index', [
             'links' => Inertia::scroll(fn () => Link::with(['tags', 'groups'])
@@ -47,7 +45,7 @@ class LinkController extends Controller
                 ->cursorPaginate(20)
                 ->through(fn (Link $link) => LinkResource::make($link)->resolve())),
             'searchString' => $searchString,
-            'filteredTags' => $filteredTags ? TagController::getTagsByNames($filteredTags) : [],
+            'filteredTags' => $this->resolveFilteredTags($filteredTags),
             'showUntaggedOnly' => $showUntaggedOnly,
             'showUnreadOnly' => $showUnreadOnly,
             'showFavoritesOnly' => $showFavoritesOnly,
@@ -308,6 +306,60 @@ class LinkController extends Controller
         $link->save();
 
         return response()->json(['rating' => $link->rating]);
+    }
+
+    /**
+     * The tag names the listing should be filtered by.
+     *
+     * Tags are sent as repeated `tags[]` parameters so that a name containing
+     * a comma survives the round trip; the older comma-separated form is still
+     * accepted for links shared or bookmarked before that change.
+     *
+     * @return array<int, string>
+     */
+    protected function requestedTagNames(): array
+    {
+        $requested = Request::get('tags');
+
+        if (! is_array($requested)) {
+            $requested = $requested === null || $requested === ''
+                ? []
+                : explode(',', (string) $requested);
+        }
+
+        return collect($requested)
+            ->filter(fn ($name) => is_string($name))
+            ->map(fn (string $name) => trim($name))
+            ->filter(fn (string $name) => $name !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Resolve the requested tag names into filter options for the UI.
+     *
+     * A name that no longer matches a tag is kept without an id: the listing
+     * is still filtered by it, so dropping it here would leave the user with
+     * an empty page and nothing explaining why.
+     *
+     * @param  array<int, string>  $names
+     * @return array<int, array{id: int|null, name: string}>
+     */
+    protected function resolveFilteredTags(array $names): array
+    {
+        if ($names === []) {
+            return [];
+        }
+
+        $resolved = collect(TagController::getTagsByNames($names))->keyBy('name');
+
+        return collect($names)
+            ->map(fn (string $name): array => [
+                'id' => $resolved->get($name)['id'] ?? null,
+                'name' => $name,
+            ])
+            ->all();
     }
 
     protected function authorizeOwnership(Link $link): void

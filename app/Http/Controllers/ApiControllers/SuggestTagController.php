@@ -25,7 +25,7 @@ class SuggestTagController extends Controller
         $text = WebpageData::getSearchableText($validated['link']);
 
         $tags = Tag::filterByCurrentUser()
-            ->orderBy('name')
+            ->orderByName()
             ->get(['id', 'name']);
 
         if ($text === null || $tags->isEmpty()) {

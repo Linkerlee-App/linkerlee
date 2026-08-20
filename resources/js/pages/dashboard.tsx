@@ -72,9 +72,15 @@ export default function Dashboard({ stats, popularTags, recentLinks, linksPerDay
                         ) : (
                             <ul className="flex flex-col gap-2">
                                 {popularTags.map((tag) => (
-                                    <li key={tag.name} className="flex items-center justify-between">
-                                        <span className="rounded-full bg-accent px-2 py-0.5 text-xs">{tag.name}</span>
-                                        <span className="text-sm text-muted-foreground">{tag.count} link{tag.count !== 1 ? 's' : ''}</span>
+                                    <li key={tag.name}>
+                                        <Link
+                                            href={linksRoute.index({ query: { tags: [tag.name] } }).url}
+                                            className="flex items-center justify-between rounded-md px-1 py-0.5 hover:bg-accent/50"
+                                            title={`Show links tagged "${tag.name}"`}
+                                        >
+                                            <span className="rounded-full bg-accent px-2 py-0.5 text-xs">{tag.name}</span>
+                                            <span className="text-sm text-muted-foreground">{tag.count} link{tag.count !== 1 ? 's' : ''}</span>
+                                        </Link>
                                     </li>
                                 ))}
                             </ul>

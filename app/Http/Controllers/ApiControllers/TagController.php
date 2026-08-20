@@ -12,7 +12,7 @@ class TagController extends Controller
      */
     public function getAllTags(): array
     {
-        return Tag::orderBy('name')
+        return Tag::orderByName()
             ->filterByCurrentUser()
             ->get()
             ->transform(fn (Tag $tag) => [

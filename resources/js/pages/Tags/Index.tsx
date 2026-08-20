@@ -6,6 +6,7 @@ import type { BreadcrumbItem } from '@/types';
 interface Tag {
     id: number;
     name: string;
+    links_count: number;
 }
 
 interface Props {
@@ -37,6 +38,12 @@ export default function TagsIndex({ tags }: Props) {
                     {tags.map((tag) => (
                         <div key={tag.id} className="flex items-center gap-1 rounded-full border border-border px-3 py-1">
                             <span className="text-sm">{tag.name}</span>
+                            <span
+                                className="rounded-full bg-accent px-1.5 text-xs text-muted-foreground"
+                                title={`${tag.links_count} link${tag.links_count !== 1 ? 's' : ''}`}
+                            >
+                                {tag.links_count}
+                            </span>
                             <button
                                 onClick={() => handleDelete(tag)}
                                 className="ml-1 text-xs text-muted-foreground hover:text-destructive"
