@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\Group;
 use App\Models\Link;
+use App\Models\Tag;
 use App\Models\User;
 
 test('unauthenticated requests are rejected', function () {
@@ -142,4 +144,43 @@ test('a title longer than the column allows is truncated instead of failing', fu
 
     expect(mb_strlen($link->title))->toBe(255)
         ->and($link->title)->toBe(mb_substr($longTitle, 0, 255));
+});
+
+/**
+ * A collection's tag rules gather links by their tags, so a link the extension
+ * creates or retags changes what the collections listing should be counting —
+ * even though the API never names a collection.
+ */
+test('tagging a link through the api keeps collection counts current', function () {
+    $user = User::factory()->create();
+    $token = $user->createToken('ext', ['create', 'update'])->plainTextToken;
+
+    $seed = Link::factory()->create(['user_id' => $user->id]);
+    $seed->attachTags(['rust']);
+    $rust = Tag::findFromString('rust')->id;
+
+    $group = Group::factory()
+        ->withTagRules([$rust])
+        ->create(['user_id' => $user->id]);
+    $group->updateLinksCount();
+    $group->save();
+
+    expect($group->fresh()->links_count)->toBe(1);
+
+    $this->withHeaders(['Authorization' => "Bearer {$token}"])
+        ->postJson('/api/links', [
+            'link' => 'https://example.com/rust-post',
+            'tags' => [$rust],
+        ])
+        ->assertSuccessful();
+
+    expect($group->fresh()->links_count)->toBe(2);
+
+    $untagged = Link::factory()->create(['user_id' => $user->id]);
+
+    $this->withHeaders(['Authorization' => "Bearer {$token}"])
+        ->putJson("/api/links/{$untagged->id}", ['tags' => [$rust]])
+        ->assertSuccessful();
+
+    expect($group->fresh()->links_count)->toBe(3);
 });

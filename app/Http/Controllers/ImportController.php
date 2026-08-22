@@ -5,12 +5,19 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ImportRequest;
 use App\Services\HtmlBookmarkImportService;
 use App\Services\ImportService;
+use App\Services\Models\GroupService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class ImportController extends Controller
 {
+    public function __construct(
+        protected GroupService $groupService,
+    ) {
+        //
+    }
+
     public function import(ImportRequest $request, HtmlBookmarkImportService $htmlBookmarkImportService, ImportService $importService)
     {
         $validated = $request->validated();
@@ -31,6 +38,10 @@ class ImportController extends Controller
         }
 
         $importService->importUserData($data, $importOptions, Auth::user());
+
+        // Imported links arrive with their tags, so a collection's rules can
+        // start matching them the moment the import lands.
+        $this->groupService->updateUserGroupsLinkCount(Auth::user());
 
         return back();
     }

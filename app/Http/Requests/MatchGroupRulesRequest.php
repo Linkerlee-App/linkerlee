@@ -2,12 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Group;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
-class StorePublicLinkRequest extends FormRequest
+class MatchGroupRulesRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -24,14 +25,15 @@ class StorePublicLinkRequest extends FormRequest
      */
     public function rules(): array
     {
-        // Existence alone would let anyone publish a share page for a
-        // collection they do not own, and that page lists the owner's links.
-        return [
-            'groupId' => [
-                'required',
-                'integer',
-                Rule::exists('groups', 'id')->where('user_id', Auth::id()),
+        return array_merge(
+            [
+                'groupId' => [
+                    'nullable',
+                    'integer',
+                    Rule::exists('groups', 'id')->where('user_id', Auth::id()),
+                ],
             ],
-        ];
+            Group::tagRuleRules(),
+        );
     }
 }
