@@ -10,6 +10,7 @@ use App\Http\Controllers\GroupController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\Internal\MailgunInboundController;
+use App\Http\Controllers\LegalController;
 use App\Http\Controllers\LinkController;
 use App\Http\Controllers\PublicLinkController;
 use App\Http\Controllers\SearchController;
@@ -28,6 +29,9 @@ Route::get('/', function () {
         'canRegister' => Features::enabled(Features::registration()),
     ]);
 })->name('home');
+
+Route::get('privacy', [LegalController::class, 'privacy'])->name('legal.privacy');
+Route::get('terms', [LegalController::class, 'terms'])->name('legal.terms');
 
 Route::get('dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
