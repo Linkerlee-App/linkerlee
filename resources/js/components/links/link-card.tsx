@@ -4,6 +4,7 @@ import { Archive, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import * as linksRoute from '@/routes/links';
+import { LinkSourceBadge } from './source-badge';
 import { faviconFor, type LinkItem, type TagOption } from './types';
 
 interface LinkCardProps {
@@ -154,7 +155,8 @@ export function LinkCard({
                 )}
             </span>
 
-            <span className="flex shrink-0 items-center gap-1">
+            <span className="flex shrink-0 items-center gap-1.5">
+                <LinkSourceBadge source={link.source} variant="icon" />
                 <span
                     className="hidden text-xs text-muted-foreground sm:inline"
                     title={link.created_at_with_time}

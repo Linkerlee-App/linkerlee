@@ -14,6 +14,7 @@ import type {
     FilterTag,
     GroupOption,
     LinkItem,
+    LinkSource,
     TagOption,
 } from '@/components/links/types';
 import { Button } from '@/components/ui/button';
@@ -34,6 +35,7 @@ interface Props {
     showUntaggedOnly: boolean;
     showUnreadOnly: boolean;
     showFavoritesOnly: boolean;
+    filteredSources: LinkSource[];
     allTags: TagOption[];
     allGroups: GroupOption[];
 }
@@ -49,6 +51,7 @@ export default function LinksIndex({
     showUntaggedOnly,
     showUnreadOnly,
     showFavoritesOnly,
+    filteredSources,
     allTags,
     allGroups,
 }: Props) {
@@ -62,6 +65,7 @@ export default function LinksIndex({
         showFavoritesOnly,
         showUnreadOnly,
         showUntaggedOnly,
+        filteredSources,
     };
 
     const baseUrl = linksRoute.index().url;
@@ -83,7 +87,8 @@ export default function LinksIndex({
                   filteredTags.length > 0 ||
                   showFavoritesOnly ||
                   showUnreadOnly ||
-                  showUntaggedOnly
+                  showUntaggedOnly ||
+                  filteredSources.length > 0
                 ? 'No links match the current filters.'
                 : 'No links yet. Add your first one!';
 

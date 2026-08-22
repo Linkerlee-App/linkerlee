@@ -2,6 +2,7 @@ import { router } from '@inertiajs/react';
 import {
     BookmarkCheck,
     ChevronDown,
+    Radio,
     Search,
     Star,
     TagIcon,
@@ -17,7 +18,14 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import type { FilterTag, TagOption } from './types';
+import {
+    LINK_SOURCE_ICONS,
+    LINK_SOURCE_LABELS,
+    LINK_SOURCES,
+    type FilterTag,
+    type LinkSource,
+    type TagOption,
+} from './types';
 
 export interface LinkFilters {
     searchString: string;
@@ -25,6 +33,7 @@ export interface LinkFilters {
     showFavoritesOnly: boolean;
     showUnreadOnly: boolean;
     showUntaggedOnly: boolean;
+    filteredSources: LinkSource[];
 }
 
 interface FilterBarProps {
@@ -52,6 +61,9 @@ function buildParams(
     }
     if (filters.showUntaggedOnly) {
         params.untaggedOnly = 1;
+    }
+    if (filters.filteredSources.length > 0) {
+        params.source = filters.filteredSources;
     }
 
     return params;
@@ -126,6 +138,14 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
         applyTags([...activeTags, tag], { showUntaggedOnly: false });
     }
 
+    function toggleSource(source: LinkSource) {
+        apply({
+            filteredSources: filters.filteredSources.includes(source)
+                ? filters.filteredSources.filter((s) => s !== source)
+                : [...filters.filteredSources, source],
+        });
+    }
+
     const matchingTags = useMemo(() => {
         const query = tagQuery.trim().toLowerCase();
 
@@ -139,7 +159,8 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
         activeTags.length > 0 ||
         filters.showFavoritesOnly ||
         filters.showUnreadOnly ||
-        filters.showUntaggedOnly;
+        filters.showUntaggedOnly ||
+        filters.filteredSources.length > 0;
 
     return (
         <div className="flex flex-col gap-2">
@@ -256,6 +277,54 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
                     <TagIcon />
                     Untagged
                 </Button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant={
+                                filters.filteredSources.length > 0
+                                    ? 'default'
+                                    : 'outline'
+                            }
+                            size="sm"
+                        >
+                            <Radio />
+                            {filters.filteredSources.length > 0
+                                ? `Source (${filters.filteredSources.length})`
+                                : 'Source'}
+                            <ChevronDown />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-56">
+                        <DropdownMenuLabel>
+                            Filter by capture source
+                        </DropdownMenuLabel>
+                        <p className="px-2 pb-1 text-xs font-normal text-muted-foreground">
+                            Links saved before sources were recorded match none
+                            of these.
+                        </p>
+                        {LINK_SOURCES.map((source) => {
+                            const Icon = LINK_SOURCE_ICONS[source];
+
+                            return (
+                                <DropdownMenuCheckboxItem
+                                    key={source}
+                                    checked={filters.filteredSources.includes(
+                                        source,
+                                    )}
+                                    onSelect={(e) => {
+                                        e.preventDefault();
+                                        toggleSource(source);
+                                    }}
+                                >
+                                    <span className="flex items-center gap-2">
+                                        <Icon className="size-3.5 text-muted-foreground" />
+                                        {LINK_SOURCE_LABELS[source]}
+                                    </span>
+                                </DropdownMenuCheckboxItem>
+                            );
+                        })}
+                    </DropdownMenuContent>
+                </DropdownMenu>
                 {hasActiveFilters && (
                     <Button
                         variant="ghost"
@@ -269,6 +338,7 @@ export function FilterBar({ baseUrl, filters, allTags }: FilterBarProps) {
                                 showFavoritesOnly: false,
                                 showUnreadOnly: false,
                                 showUntaggedOnly: false,
+                                filteredSources: [],
                             });
                         }}
                     >

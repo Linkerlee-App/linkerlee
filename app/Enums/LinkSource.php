@@ -62,15 +62,4 @@ enum LinkSource: string
     {
         return [self::Extension, self::Api];
     }
-
-    public function label(): string
-    {
-        return match ($this) {
-            self::Web => 'Web app',
-            self::Extension => 'Browser extension',
-            self::Api => 'API',
-            self::Email => 'Email',
-            self::Import => 'Import',
-        };
-    }
 }

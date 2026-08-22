@@ -1,3 +1,12 @@
+import {
+    Globe,
+    Mail,
+    Puzzle,
+    Terminal,
+    Upload,
+    type LucideIcon,
+} from 'lucide-react';
+
 export interface TagOption {
     id: number;
     name: string;
@@ -19,8 +28,35 @@ export interface GroupOption {
 
 /**
  * How a link was captured. Null on links saved before the source was recorded.
+ *
+ * Mirrors App\Enums\LinkSource. The order here is the order the filter menu
+ * lists them in: the two a link is most likely to have come from first.
  */
-export type LinkSource = 'web' | 'extension' | 'api' | 'email' | 'import';
+export const LINK_SOURCES = [
+    'web',
+    'extension',
+    'email',
+    'api',
+    'import',
+] as const;
+
+export type LinkSource = (typeof LINK_SOURCES)[number];
+
+export const LINK_SOURCE_LABELS: Record<LinkSource, string> = {
+    web: 'Web app',
+    extension: 'Browser extension',
+    email: 'Email',
+    api: 'API',
+    import: 'Import',
+};
+
+export const LINK_SOURCE_ICONS: Record<LinkSource, LucideIcon> = {
+    web: Globe,
+    extension: Puzzle,
+    email: Mail,
+    api: Terminal,
+    import: Upload,
+};
 
 export interface LinkItem {
     id: number;

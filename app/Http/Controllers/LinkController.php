@@ -37,12 +37,13 @@ class LinkController extends Controller
         $showUntaggedOnly = Request::boolean('untaggedOnly');
         $showUnreadOnly = Request::boolean('unreadOnly');
         $showFavoritesOnly = Request::boolean('favorite');
+        $filteredSources = $this->requestedSources();
 
         return Inertia::render('Links/Index', [
             'links' => Inertia::scroll(fn () => Link::with(['tags', 'groups'])
                 ->orderBy('created_at', 'desc')
                 ->filterByCurrentUser()
-                ->filterLinks($searchString, $filteredTags, $showUntaggedOnly, $showUnreadOnly, $showFavoritesOnly)
+                ->filterLinks($searchString, $filteredTags, $showUntaggedOnly, $showUnreadOnly, $showFavoritesOnly, $filteredSources)
                 ->cursorPaginate(20)
                 ->through(fn (Link $link) => LinkResource::make($link)->resolve())),
             'searchString' => $searchString,
@@ -50,6 +51,7 @@ class LinkController extends Controller
             'showUntaggedOnly' => $showUntaggedOnly,
             'showUnreadOnly' => $showUnreadOnly,
             'showFavoritesOnly' => $showFavoritesOnly,
+            'filteredSources' => array_map(fn (LinkSource $source) => $source->value, $filteredSources),
             'allTags' => TagController::getAllTags(),
             'allGroups' => Group::orderBy('title')
                 ->filterByCurrentUser()
