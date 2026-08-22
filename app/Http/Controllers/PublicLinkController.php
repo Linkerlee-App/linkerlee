@@ -56,7 +56,7 @@ class PublicLinkController extends Controller
     {
         $groupId = $request->validated('groupId');
 
-        $group = Group::find($groupId);
+        $group = Group::filterByCurrentUser()->findOrFail($groupId);
 
         $publicLink = PublicLink::make();
 
@@ -97,6 +97,7 @@ class PublicLinkController extends Controller
         return Inertia::render('PublicLink/Show', [
             'title' => $group->title,
             'links' => Inertia::scroll(fn () => $group->links()
+                ->orderBy('links.created_at', 'desc')
                 ->filterLinks($searchString)
                 ->cursorPaginate(20)
                 ->through(fn (Link $link) => [
