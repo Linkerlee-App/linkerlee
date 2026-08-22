@@ -115,4 +115,36 @@ class GroupService
             }
         });
     }
+
+    /**
+     * Point a user's tag rules at a different tag.
+     *
+     * Renaming a tag that other users also carry moves the current user's
+     * links onto a new tag rather than renaming the shared row, and their
+     * collection rules have to follow or they quietly stop matching.
+     */
+    public function replaceTagInQueryOptions(int $fromTagId, int $toTagId, User $user): void
+    {
+        Group::where('user_id', $user->id)->get()->each(function (Group $group) use ($fromTagId, $toTagId): void {
+            $queryOptions = $group->query_options ?? [];
+            $changed = false;
+
+            foreach ($queryOptions as $key => $tagIds) {
+                if (! in_array($fromTagId, $tagIds, true)) {
+                    continue;
+                }
+
+                $queryOptions[$key] = array_values(array_unique(array_map(
+                    fn ($id) => $id === $fromTagId ? $toTagId : $id,
+                    $tagIds,
+                )));
+                $changed = true;
+            }
+
+            if ($changed) {
+                $group->query_options = $queryOptions;
+                $group->save();
+            }
+        });
+    }
 }

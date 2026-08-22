@@ -2,11 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreTagRequest;
+use App\Http\Requests\UpdateTagRequest;
+use App\Models\Link;
 use App\Models\Tag;
 use App\Services\Models\GroupService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Redirect;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -16,13 +22,6 @@ class TagController extends Controller
         protected GroupService $groupService,
     ) {
         //
-    }
-
-    protected function rules(): array
-    {
-        return [
-            'tagName' => 'required|min:2|string',
-        ];
     }
 
     /**
@@ -56,14 +55,14 @@ class TagController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreTagRequest $request): RedirectResponse
     {
-        Request::validate($this->rules());
+        // Tags carry no owner column — a tag is "yours" because one of your
+        // links wears it — so this only has to avoid minting a duplicate row
+        // for a name that already exists.
+        Tag::findOrCreate($request->validated('tagName'));
 
-        Tag::create([
-            'name' => Request::get('tagName'),
-            'user_id' => Auth::id(),
-        ]);
+        return Redirect::back();
     }
 
     /**
@@ -85,24 +84,92 @@ class TagController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Tag $tag)
+    public function update(UpdateTagRequest $request, Tag $tag): RedirectResponse
     {
-        Request::validate($this->rules());
+        $this->authorizeTagUsage($tag);
 
-        $tag->name = Request::get('tagName');
+        $name = $request->validated('tagName');
 
-        $tag->save();
+        if ($this->isUsedByAnotherUser($tag)) {
+            // Renaming the row itself would rename the tag under everyone else
+            // using it, so the current user's links move to a tag carrying the
+            // new name and the original is left alone for its other users.
+            $replacement = Tag::findOrCreate($name);
+
+            $this->taggedLinksOfCurrentUser($tag)->each(function (Link $link) use ($tag, $replacement): void {
+                $link->detachTag($tag);
+                $link->attachTag($replacement);
+            });
+
+            $this->groupService->replaceTagInQueryOptions($tag->id, $replacement->id, Auth::user());
+        } else {
+            $tag->name = $name;
+            $tag->save();
+        }
+
+        $this->groupService->updateUserGroupsLinkCount(Auth::user());
+
+        return Redirect::back();
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Tag $tag)
+    public function destroy(Tag $tag): RedirectResponse
     {
-        $tag->delete();
+        $this->authorizeTagUsage($tag);
+
+        // `taggables.tag_id` cascades, so deleting the row outright stripped
+        // the tag from every user filed under it. Deleting a tag means dropping
+        // it from your own links; the shared row only goes once nothing points
+        // at it any more.
+        $this->taggedLinksOfCurrentUser($tag)->each(fn (Link $link) => $link->detachTag($tag));
+
+        if (! $this->isStillInUse($tag)) {
+            $tag->delete();
+        }
 
         $this->groupService->removeDeletedTagFromQueryOptions($tag->id, Auth::user());
         $this->groupService->updateUserGroupsLinkCount(Auth::user());
+
+        return Redirect::back();
+    }
+
+    /**
+     * A tag is reachable only by a user who has a link filed under it. Someone
+     * else's tag 404s rather than 403s, so an id cannot be probed for existence.
+     */
+    protected function authorizeTagUsage(Tag $tag): void
+    {
+        abort_unless(Tag::filterByCurrentUser()->whereKey($tag->id)->exists(), 404);
+    }
+
+    /**
+     * The current user's links wearing this tag, archived ones included — a
+     * tag the user has removed should not reappear when a link is restored.
+     *
+     * @return Collection<int, Link>
+     */
+    protected function taggedLinksOfCurrentUser(Tag $tag): Collection
+    {
+        return Link::withTrashed()
+            ->filterByCurrentUser()
+            ->whereHas('tags', fn (Builder $query) => $query->whereKey($tag->id))
+            ->get();
+    }
+
+    protected function isUsedByAnotherUser(Tag $tag): bool
+    {
+        return DB::table('taggables')
+            ->where('tag_id', $tag->id)
+            ->where('taggable_type', Link::class)
+            ->whereNotIn('taggable_id', Link::withTrashed()->filterByCurrentUser()->select('id'))
+            ->exists();
+    }
+
+    protected function isStillInUse(Tag $tag): bool
+    {
+        return DB::table('taggables')->where('tag_id', $tag->id)->exists();
     }
 
     /**
