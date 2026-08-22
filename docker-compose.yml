@@ -1,0 +1,82 @@
+name: linkerlee
+
+services:
+  # nginx: serves public/ and hands PHP requests to the app container.
+  web:
+    build:
+      context: .
+      target: web
+    image: linkerlee/web:latest
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8000}:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/up >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # PHP-FPM: the application itself. Also runs the migrations on startup.
+  app:
+    build:
+      context: .
+      target: app
+    image: linkerlee/app:latest
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - storage:/var/www/html/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "SCRIPT_NAME=/ping SCRIPT_FILENAME=/ping REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 | grep -q pong"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+
+  # The queue worker. Without it, saved links are never enriched with their
+  # title, description, favicon or preview image. Do not remove it.
+  queue:
+    build:
+      context: .
+      target: app
+    image: linkerlee/app:latest
+    restart: unless-stopped
+    env_file: .env
+    command: ["php", "artisan", "queue:work", "--tries=3", "--timeout=90", "--max-time=3600"]
+    volumes:
+      - storage:/var/www/html/storage
+    depends_on:
+      app:
+        condition: service_healthy
+    stop_grace_period: 100s
+
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_DATABASE: "${DB_DATABASE:-linkerlee}"
+      MYSQL_USER: "${DB_USERNAME:-linkerlee}"
+      MYSQL_PASSWORD: "${DB_PASSWORD:-please-change-me}"
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:-please-change-me-too}"
+    volumes:
+      - mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_ROOT_PASSWORD:-please-change-me-too}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  storage:
+  mysql:
