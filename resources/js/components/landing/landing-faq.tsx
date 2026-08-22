@@ -1,4 +1,14 @@
+import {
+    APP_REPOSITORY_URL,
+    EXTENSION_REPOSITORY_URL,
+    LICENSE_URL,
+} from '@/lib/repositories';
+
 const faqs = [
+    {
+        q: 'Is Linkerlee open source?',
+        a: `Yes — Linkerlee is MIT licensed and developed in the open. The web app lives at <a class="text-[#c97208] underline-offset-4 hover:underline dark:text-[#ffc266]" href="${APP_REPOSITORY_URL}" target="_blank" rel="noreferrer">linkerlee-app/linkerlee</a> and the browser extension at <a class="text-[#c97208] underline-offset-4 hover:underline dark:text-[#ffc266]" href="${EXTENSION_REPOSITORY_URL}" target="_blank" rel="noreferrer">linkerlee-app/linkerlee-browser-extension</a>. Read the code, file an issue, or send a pull request — the <a class="text-[#c97208] underline-offset-4 hover:underline dark:text-[#ffc266]" href="${LICENSE_URL}" target="_blank" rel="noreferrer">licence</a> lets you fork it too.`,
+    },
     {
         q: 'Is Linkerlee free?',
         a: 'Yes. The Free plan gives you unlimited bookmarks, tags, and groups, plus one public collection. Pro and Team add power-user features for a few dollars a month.',
@@ -21,7 +31,7 @@ const faqs = [
     },
     {
         q: 'Can I self-host?',
-        a: 'Linkerlee is built on Laravel and ships with sensible defaults. Self-hosting docs are on the roadmap; for now, get in touch if you want to run your own instance.',
+        a: `Linkerlee is built on Laravel and ships with sensible defaults, and the full source is on <a class="text-[#c97208] underline-offset-4 hover:underline dark:text-[#ffc266]" href="${APP_REPOSITORY_URL}" target="_blank" rel="noreferrer">GitHub</a> under the MIT licence. Polished self-hosting docs are on the roadmap; for now the README will get you a local instance running.`,
     },
 ];
 

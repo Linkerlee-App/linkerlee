@@ -4,6 +4,7 @@ import { LandingFeatures } from '@/components/landing/landing-features';
 import { LandingFooter } from '@/components/landing/landing-footer';
 import { LandingHero } from '@/components/landing/landing-hero';
 import { LandingNav } from '@/components/landing/landing-nav';
+import { LandingOpenSource } from '@/components/landing/landing-open-source';
 import { LandingPreview } from '@/components/landing/landing-preview';
 import { LandingPricing } from '@/components/landing/landing-pricing';
 import type { User } from '@/types';
@@ -26,7 +27,7 @@ export default function Welcome({
             <Head title="Linkerlee — your bookmarks, finally organized">
                 <meta
                     name="description"
-                    content="A focused bookmarking tool: save any link, tag it, drop it in a smart group, share it. Linkerlee turns the chaos of saved tabs into a library you'll actually come back to."
+                    content="A focused, open-source bookmarking tool: save any link, tag it, drop it in a smart group, share it. Linkerlee turns the chaos of saved tabs into a library you'll actually come back to."
                 />
                 <link
                     rel="icon"
@@ -47,6 +48,7 @@ export default function Welcome({
                     <LandingFeatures />
                     <LandingPreview />
                     <LandingPricing />
+                    <LandingOpenSource />
                     <LandingFAQ />
                 </main>
                 <LandingFooter />
