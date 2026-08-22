@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import * as linksRoute from '@/routes/links';
+import { LinkSourceBadge } from './source-badge';
 import { TagPicker } from './tag-picker';
 import {
     faviconFor,
@@ -473,6 +474,17 @@ export function LinkDetailView({
                                             {group.title}
                                         </Badge>
                                     ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {link.source !== null && (
+                            <div className="flex flex-col gap-1.5">
+                                <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                    Saved from
+                                </span>
+                                <div className="flex flex-wrap gap-1.5">
+                                    <LinkSourceBadge source={link.source} />
                                 </div>
                             </div>
                         )}

@@ -322,6 +322,14 @@ components:
           format: date-time
           nullable: true
           description: When the user marked the link read. Null while unread.
+        source:
+          type: string
+          nullable: true
+          enum: [web, extension, api, email, import]
+          description: |
+            How the link was captured. Null for links saved before the capture
+            source was recorded.
+          example: extension
         favicon_url:
           type: string
           format: uri
@@ -377,6 +385,16 @@ components:
             Tag names to create and attach. Existing tags with the same name are
             reused. Combines with `tags`.
           example: [framework]
+        source:
+          type: string
+          nullable: true
+          enum: [extension, api]
+          description: |
+            How this client captured the link. Only `extension` and `api` are
+            accepted — a client cannot claim `web`, `email` or `import`. Omit it
+            and the server decides from the `Origin` header: a browser-extension
+            scheme is recorded as `extension`, anything else as `api`.
+          example: extension
     UpdateLinkRequest:
       type: object
       description: |

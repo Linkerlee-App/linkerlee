@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\LinkSource;
 use App\Models\Group;
 use App\Models\Link;
 use App\Models\User;
@@ -44,6 +45,7 @@ class ImportService
                     $link->user_id = $user->id;
                     $link->link = $url;
                     $link->title = $linkData['title'] ?? null;
+                    $link->source = LinkSource::Import;
                     $link->save();
                 }
 

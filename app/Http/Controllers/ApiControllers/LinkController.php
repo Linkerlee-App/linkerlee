@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\ApiControllers;
 
+use App\Enums\LinkSource;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreLinkApiRequest;
 use App\Http\Requests\UpdateLinkApiRequest;
@@ -33,6 +34,7 @@ class LinkController extends Controller
         $link = $this->linkCreationService->create(
             Auth::user(),
             $validated['link'],
+            LinkSource::fromApiClient($request->headers->get('Origin'), $validated['source'] ?? null),
             $validated['title'] ?? null,
         );
 
@@ -40,8 +42,6 @@ class LinkController extends Controller
             $groupIds = $validated['groups'];
 
             $link->groups()->sync($groupIds);
-
-            $this->groupService->updateUserGroupsLinkCount(Auth::user());
         }
 
         $tags = [];
@@ -60,6 +60,10 @@ class LinkController extends Controller
         if ($tags !== []) {
             $link->syncTags($tags);
         }
+
+        // The tags decide which collections gather this link, so the counts
+        // have to be recomputed even when no collection was named outright.
+        $this->groupService->updateUserGroupsLinkCount(Auth::user());
 
         return response('The link was added.', headers: ['Content-Type' => 'text/plain']);
     }
@@ -122,6 +126,10 @@ class LinkController extends Controller
 
         $link->syncTags($tags);
 
+        // Retagging alone can move the link in or out of a rule-driven
+        // collection, so the stored counts have to follow.
+        $this->groupService->updateUserGroupsLinkCount(Auth::user());
+
         return response()->json($this->presentLink($link->fresh('tags')));
     }
 
@@ -167,6 +175,7 @@ class LinkController extends Controller
             'title' => $link->title,
             'link' => $link->link,
             'read_at' => $link->read_at?->toISOString(),
+            'source' => $link->source?->value,
             'favicon_url' => $link->favicon_url,
             'preview_image_url' => $link->preview_image_url,
             'tags' => $link->tags

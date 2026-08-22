@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\LinkSource;
 use App\Models\Group;
 use App\Models\Link;
 use Closure;
@@ -10,6 +11,7 @@ use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Request;
+use Illuminate\Validation\Rules\Enum;
 
 class StoreLinkApiRequest extends FormRequest
 {
@@ -28,6 +30,7 @@ class StoreLinkApiRequest extends FormRequest
     {
         $this->merge([
             'title' => $this->title ?: null,
+            'source' => $this->source ?: null,
             'link' => filter_var($this->link, FILTER_VALIDATE_URL) ? $this->link : "https://$this->link",
         ]);
     }
@@ -55,6 +58,7 @@ class StoreLinkApiRequest extends FormRequest
             'tags.*' => ['integer', 'exists:tags,id'],
             'newTags' => 'nullable|array',
             'newTags.*' => 'string|min:1|max:50',
+            'source' => ['nullable', (new Enum(LinkSource::class))->only(LinkSource::apiClientSources())],
         ]);
     }
 

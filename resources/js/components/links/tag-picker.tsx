@@ -7,21 +7,30 @@ const MAX_VISIBLE_UNSELECTED = 12;
 interface TagPickerProps {
     allTags: TagOption[];
     selectedIds: number[];
-    newTags: string[];
     onToggle: (id: number) => void;
-    onAddNew: (name: string) => void;
-    onRemoveNew: (name: string) => void;
+    newTags?: string[];
+    onAddNew?: (name: string) => void;
+    onRemoveNew?: (name: string) => void;
     suggestedTags?: TagOption[];
+    label?: string;
+    /**
+     * A collection's tag rules can only name tags that already exist — a rule
+     * pointing at a tag nothing is filed under can never match anything — so
+     * the picker there selects, and never creates.
+     */
+    allowCreate?: boolean;
 }
 
 export function TagPicker({
     allTags,
     selectedIds,
-    newTags,
     onToggle,
+    newTags = [],
     onAddNew,
     onRemoveNew,
     suggestedTags = [],
+    label = 'Tags',
+    allowCreate = true,
 }: TagPickerProps) {
     const [input, setInput] = useState('');
     const containerRef = useRef<HTMLDivElement>(null);
@@ -108,7 +117,10 @@ export function TagPicker({
             setInput('');
             return;
         }
-        onAddNew(trimmed);
+        if (!allowCreate) {
+            return;
+        }
+        onAddNew?.(trimmed);
         setInput('');
     }
 
@@ -128,7 +140,7 @@ export function TagPicker({
             onBlur={handleBlur}
             className="flex flex-col gap-1.5"
         >
-            <Label>Tags</Label>
+            <Label>{label}</Label>
             <div className="flex flex-wrap gap-1.5">
                 {visibleTags.selected.map((tag) => (
                     <button
@@ -150,7 +162,7 @@ export function TagPicker({
                         <button
                             type="button"
                             onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => onRemoveNew(name)}
+                            onClick={() => onRemoveNew?.(name)}
                             className="leading-none hover:opacity-70"
                         >
                             &times;
@@ -191,7 +203,9 @@ export function TagPicker({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Search or add a tag…"
+                placeholder={
+                    allowCreate ? 'Search or add a tag…' : 'Search a tag…'
+                }
                 className="mt-1 w-full rounded-md border border-border bg-transparent px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:ring-1 focus:ring-ring focus:outline-none"
             />
         </div>

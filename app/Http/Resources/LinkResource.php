@@ -24,6 +24,7 @@ class LinkResource extends JsonResource
             'is_favorite' => $this->is_favorite,
             'rating' => $this->rating,
             'read_at' => $this->read_at?->toISOString(),
+            'source' => $this->source?->value,
             'favicon_url' => $this->favicon_url,
             'preview_image_url' => $this->preview_image_url,
             'tags' => $this->tags->map(fn ($tag) => ['id' => $tag->id, 'name' => $tag->name])->values(),

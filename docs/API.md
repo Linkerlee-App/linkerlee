@@ -115,6 +115,7 @@ Creates a new link for the authenticated user.
 | `groups`   | int[]      | no       | Group IDs to attach. Each must exist and belong to the current user. |
 | `tags`     | int[]      | no       | Tag IDs to attach. Each must exist. |
 | `newTags`  | string[]   | no       | Tag names to create and attach, 1–50 characters each. Existing tags with the same name are reused. |
+| `source`   | string     | no       | How the link was captured: `extension` or `api`. Only those two values are accepted — an API client cannot claim `web`, `email` or `import`. Omit it and the server decides: a request whose `Origin` is a browser-extension scheme (`chrome-extension://`, `moz-extension://`, `safari-web-extension://`) is recorded as `extension`, anything else as `api`. |
 
 `tags` and `newTags` combine — you can attach known IDs and create new names in one request.
 Sending neither leaves the link untagged; unlike `PUT`, it does not clear anything.
@@ -127,7 +128,8 @@ Sending neither leaves the link untagged; unlike `PUT`, it does not clear anythi
     "title": "Laravel Documentation",
     "groups": [1, 4],
     "tags": [2],
-    "newTags": ["framework"]
+    "newTags": ["framework"],
+    "source": "extension"
 }
 ```
 
@@ -183,6 +185,7 @@ GET /api/links/find?link=https%3A%2F%2Flaravel.com%2Fdocs
     "title": "Laravel Documentation",
     "link": "https://laravel.com/docs",
     "read_at": null,
+    "source": "extension",
     "favicon_url": "https://laravel.com/favicon.ico",
     "preview_image_url": "https://laravel.com/og-image.png",
     "tags": [
@@ -201,6 +204,9 @@ null
 > is the common case. Clients should treat it as a negative answer rather than a failure.
 
 `favicon_url` and `preview_image_url` are `null` until the background metadata job has run.
+
+`source` records how the link was captured — `web`, `extension`, `api`, `email` or `import`.
+It is `null` for links saved before the capture source was recorded.
 
 ---
 

@@ -122,7 +122,8 @@ origins, so a self-hosted instance works with it out of the box.
 
 **Prerequisites:** PHP 8.4 or newer, [Composer](https://getcomposer.org), and Node.js 22+.
 
-You do **not** need MySQL. LinkerLee defaults to SQLite, which needs no server.
+You do **not** need MySQL. LinkerLee defaults to SQLite, which needs no server. If you would
+rather not install any of this, [deploy it with Docker](#with-docker-recommended) instead.
 
 ```bash
 git clone https://github.com/linkerlee-app/linkerlee.git
@@ -206,7 +207,57 @@ consumer; breaking changes will be coordinated with it.
 
 ## Deployment
 
-No Dockerfile or compose file is provided yet. A conventional PHP deployment:
+### With Docker (recommended)
+
+The repository ships a `Dockerfile` and a `docker-compose.yml` that stand up the whole
+stack — nginx, PHP-FPM, **a queue worker** and MySQL 8 — from one command.
+
+```bash
+git clone https://github.com/linkerlee-app/linkerlee.git
+cd linkerlee
+cp .env.docker.example .env
+
+# Generate an app key and paste it into APP_KEY in .env
+docker compose run --rm --no-deps --entrypoint php app artisan key:generate --show
+
+# Set your own DB_PASSWORD and DB_ROOT_PASSWORD in .env, then:
+docker compose up -d --build
+```
+
+LinkerLee is then at **<http://localhost:8000>** — register at `/register`. With the
+example file's `MAIL_MAILER=log`, the verification email is written to the log instead of
+sent; read it with `docker compose logs app` or at `/log-viewer`.
+
+| Service | What it does |
+|---|---|
+| `web` | nginx on the port set by `APP_PORT`, serving `public/` and the built assets |
+| `app` | PHP-FPM. Runs the migrations and warms the config, route and view caches on startup |
+| `queue` | `php artisan queue:work` — **the metadata fetcher**. Without it, saved links stay untitled |
+| `mysql` | MySQL 8, which is also what enables full-text search |
+
+Useful commands:
+
+```bash
+docker compose logs -f app queue          # follow the application logs
+docker compose exec app php artisan ...   # run any artisan command
+docker compose down                       # stop; volumes (database, storage) survive
+docker compose up -d --build              # apply an update; migrations run automatically
+```
+
+Two things worth knowing before putting it on the internet:
+
+- **Nothing in the stack terminates TLS.** Put a reverse proxy (Caddy, Traefik, nginx) in
+  front of `web`, and set `APP_URL` to the public `https://` address. The bundled nginx
+  honours `X-Forwarded-Proto`, so Laravel generates `https://` URLs behind such a proxy.
+- **Change `DB_PASSWORD` and `DB_ROOT_PASSWORD`** before the first `up` — MySQL only reads
+  them when it initialises its volume.
+
+To use an external database instead of the bundled one, point `DB_HOST` at it and remove
+the `mysql` service (and the `depends_on` entries referencing it) from `docker-compose.yml`.
+
+### Without Docker
+
+A conventional PHP deployment:
 
 ```bash
 composer install --no-dev --optimize-autoloader

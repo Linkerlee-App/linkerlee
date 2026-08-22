@@ -70,6 +70,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/suggest-tags', SuggestTagController::class)
         ->name('suggest-tags');
 
+    Route::post('/groups/match-count', [GroupController::class, 'matchCount'])
+        ->name('groups.match-count');
+
     Route::post('/search', [SearchController::class, 'search'])
         ->name('search');
 

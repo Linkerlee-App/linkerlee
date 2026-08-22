@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Concerns\HasCurrentUserScope;
+use App\Enums\LinkSource;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -86,6 +87,7 @@ class Link extends Model implements Searchable
             'rating' => 'integer',
             'read_at' => 'datetime',
             'metadata_fetched_at' => 'datetime',
+            'source' => LinkSource::class,
         ];
     }
 
@@ -181,15 +183,22 @@ class Link extends Model implements Searchable
      * Several tag names narrow the listing instead of widening it: a link has
      * to carry every one of them. Picking a second tag is how the user asks
      * for "both of these", and an OR there only ever buried the first pick.
+     *
+     * Sources go the other way: they are mutually exclusive per link, so
+     * several picked at once can only mean "any of these".
+     *
+     * @param  array<int, string>  $filteredTags
+     * @param  array<int, LinkSource>  $filteredSources
      */
-    public function scopeFilterLinks(Builder $query, string $searchString, array $filteredTags = [], bool|string $showUntaggedOnly = false, bool|string $showUnreadOnly = false, bool|string $showFavoritesOnly = false): Builder
+    public function scopeFilterLinks(Builder $query, string $searchString, array $filteredTags = [], bool|string $showUntaggedOnly = false, bool|string $showUnreadOnly = false, bool|string $showFavoritesOnly = false, array $filteredSources = []): Builder
     {
         return $query
             ->when($searchString, fn ($q) => $q->where(fn ($q) => $this->applySearchString($q, $searchString)))
             ->when($filteredTags, fn ($q) => $q->withAllTags($filteredTags))
             ->when($showUntaggedOnly, fn ($q) => $q->whereDoesntHave('tags'))
             ->when($showUnreadOnly, fn ($q) => $q->whereNull('links.read_at'))
-            ->when($showFavoritesOnly, fn ($q) => $q->where('links.is_favorite', true));
+            ->when($showFavoritesOnly, fn ($q) => $q->where('links.is_favorite', true))
+            ->when($filteredSources, fn ($q) => $q->whereIn('links.source', $filteredSources));
     }
 
     /**
