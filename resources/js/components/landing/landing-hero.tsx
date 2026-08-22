@@ -95,7 +95,13 @@ export function LandingHero({ user, canRegister = true }: Props) {
                         )}
                     </div>
                     <p className="mt-4 text-xs text-[#1a1410]/50 dark:text-white/40">
-                        Free forever for personal use. No credit card required.
+                        Free forever for personal use. No credit card required.{' '}
+                        <a
+                            href="#open-source"
+                            className="text-[#c97208] underline-offset-4 hover:underline dark:text-[#ffc266]"
+                        >
+                            Open source, MIT licensed.
+                        </a>
                     </p>
                 </div>
 
