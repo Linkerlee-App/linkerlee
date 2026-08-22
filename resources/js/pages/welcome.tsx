@@ -1,4 +1,5 @@
 import { Head, usePage } from '@inertiajs/react';
+import { LandingExtensions } from '@/components/landing/landing-extensions';
 import { LandingFAQ } from '@/components/landing/landing-faq';
 import { LandingFeatures } from '@/components/landing/landing-features';
 import { LandingFooter } from '@/components/landing/landing-footer';
@@ -47,6 +48,7 @@ export default function Welcome({
                     <LandingHero user={user} canRegister={canRegister} />
                     <LandingFeatures />
                     <LandingPreview />
+                    <LandingExtensions />
                     <LandingPricing />
                     <LandingOpenSource />
                     <LandingFAQ />

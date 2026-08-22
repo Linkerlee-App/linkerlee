@@ -1,17 +1,19 @@
 import { Link } from '@inertiajs/react';
 import { GithubMark } from '@/components/landing/github-mark';
+import { EXTENSION_STORES } from '@/lib/extensions';
 import {
     APP_REPOSITORY_URL,
     EXTENSION_REPOSITORY_URL,
     LICENSE_URL,
 } from '@/lib/repositories';
 import { login, register } from '@/routes';
+import { privacy, terms } from '@/routes/legal';
 
 export function LandingFooter() {
     return (
         <footer className="border-t border-[#1a141010] bg-white py-14 dark:border-white/10 dark:bg-[#0a0a0a]">
             <div className="mx-auto w-full max-w-6xl px-6">
-                <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[2fr_repeat(4,1fr)]">
+                <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[2fr_repeat(5,1fr)]">
                     <div>
                         <img
                             src="/linkerlee-logo-light.svg"
@@ -42,9 +44,25 @@ export function LandingFooter() {
                     <FooterColumn
                         title="Product"
                         links={[
-                            { label: 'Features', href: '#features' },
-                            { label: 'Pricing', href: '#pricing' },
-                            { label: 'FAQ', href: '#faq' },
+                            { label: 'Features', href: '/#features' },
+                            { label: 'Pricing', href: '/#pricing' },
+                            { label: 'FAQ', href: '/#faq' },
+                        ]}
+                    />
+                    <FooterColumn
+                        title="Extensions"
+                        links={[
+                            ...EXTENSION_STORES.map((store) => ({
+                                label:
+                                    store.href === null
+                                        ? `${store.shortName} (soon)`
+                                        : store.shortName,
+                                href: store.href ?? '/#extensions',
+                            })),
+                            {
+                                label: 'Extension source',
+                                href: EXTENSION_REPOSITORY_URL,
+                            },
                         ]}
                     />
                     <FooterColumn
@@ -79,8 +97,16 @@ export function LandingFooter() {
                     <FooterColumn
                         title="Legal"
                         links={[
-                            { label: 'Privacy', href: '/privacy' },
-                            { label: 'Terms', href: '/terms' },
+                            {
+                                label: 'Privacy',
+                                href: privacy().url,
+                                inertia: true,
+                            },
+                            {
+                                label: 'Terms',
+                                href: terms().url,
+                                inertia: true,
+                            },
                             {
                                 label: 'Contact',
                                 href: 'mailto:hello@linkerlee.com',

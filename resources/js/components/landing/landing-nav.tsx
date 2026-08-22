@@ -9,6 +9,17 @@ type Props = {
     canRegister?: boolean;
 };
 
+/**
+ * Root-relative so the nav still lands on the right section when it is rendered
+ * away from the landing page, as it is on /privacy and /terms.
+ */
+const sectionLinks = [
+    { label: 'Features', href: '/#features' },
+    { label: 'Extensions', href: '/#extensions' },
+    { label: 'Pricing', href: '/#pricing' },
+    { label: 'FAQ', href: '/#faq' },
+];
+
 export function LandingNav({ user, canRegister = true }: Props) {
     return (
         <header className="sticky top-0 z-40 border-b border-[#1a141014] bg-[#fff8ec]/80 backdrop-blur dark:border-white/10 dark:bg-[#0a0a0a]/80">
@@ -31,35 +42,26 @@ export function LandingNav({ user, canRegister = true }: Props) {
                 </Link>
 
                 <nav className="flex items-center gap-2 text-sm">
-                    <a
-                        href="#features"
-                        className="hidden rounded-md px-3 py-2 text-[#1a1410]/70 hover:text-[#1a1410] sm:inline-block dark:text-white/70 dark:hover:text-white"
-                    >
-                        Features
-                    </a>
-                    <a
-                        href="#pricing"
-                        className="hidden rounded-md px-3 py-2 text-[#1a1410]/70 hover:text-[#1a1410] sm:inline-block dark:text-white/70 dark:hover:text-white"
-                    >
-                        Pricing
-                    </a>
-                    <a
-                        href="#faq"
-                        className="hidden rounded-md px-3 py-2 text-[#1a1410]/70 hover:text-[#1a1410] sm:inline-block dark:text-white/70 dark:hover:text-white"
-                    >
-                        FAQ
-                    </a>
+                    {sectionLinks.map((section) => (
+                        <a
+                            key={section.href}
+                            href={section.href}
+                            className="hidden rounded-md px-3 py-2 text-[#1a1410]/70 hover:text-[#1a1410] lg:inline-block dark:text-white/70 dark:hover:text-white"
+                        >
+                            {section.label}
+                        </a>
+                    ))}
                     <a
                         href={APP_REPOSITORY_URL}
                         target="_blank"
                         rel="noreferrer"
                         title="Linkerlee is open source — view it on GitHub"
-                        className="hidden items-center gap-2 rounded-md px-3 py-2 text-[#1a1410]/70 hover:text-[#1a1410] sm:inline-flex dark:text-white/70 dark:hover:text-white"
+                        className="hidden items-center gap-2 rounded-md px-3 py-2 text-[#1a1410]/70 hover:text-[#1a1410] lg:inline-flex dark:text-white/70 dark:hover:text-white"
                     >
                         <GithubMark className="size-4" />
                         GitHub
                     </a>
-                    <span className="mx-2 hidden h-5 w-px bg-[#1a141020] sm:inline-block dark:bg-white/15" />
+                    <span className="mx-2 hidden h-5 w-px bg-[#1a141020] lg:inline-block dark:bg-white/15" />
 
                     {user ? (
                         <Link
