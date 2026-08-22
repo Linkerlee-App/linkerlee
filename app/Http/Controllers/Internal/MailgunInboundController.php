@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Internal;
 
+use App\Enums\LinkSource;
 use App\Http\Controllers\Controller;
 use App\Models\Link;
 use App\Models\User;
@@ -64,7 +65,7 @@ class MailgunInboundController extends Controller
 
         $title = InboundEmailParser::extractTitle($subject, $url);
 
-        $this->linkCreationService->create($user, $url, $title);
+        $this->linkCreationService->create($user, $url, LinkSource::Email, $title);
 
         return response('Link saved', 200);
     }

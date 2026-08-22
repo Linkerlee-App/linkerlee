@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\LinkSource;
 use App\Http\Requests\StoreLinkRequest;
 use App\Http\Requests\UpdateLinkRequest;
 use App\Http\Resources\LinkResource;
@@ -84,6 +85,7 @@ class LinkController extends Controller
         $link->title = $validated['title'];
         $link->description = $validated['description'] ?? null;
         $link->user_id = Auth::id();
+        $link->source = LinkSource::Web;
 
         $link->save();
 

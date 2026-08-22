@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\ApiControllers;
 
+use App\Enums\LinkSource;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreLinkApiRequest;
 use App\Http\Requests\UpdateLinkApiRequest;
@@ -33,6 +34,7 @@ class LinkController extends Controller
         $link = $this->linkCreationService->create(
             Auth::user(),
             $validated['link'],
+            LinkSource::fromApiClient($request->headers->get('Origin'), $validated['source'] ?? null),
             $validated['title'] ?? null,
         );
 
@@ -167,6 +169,7 @@ class LinkController extends Controller
             'title' => $link->title,
             'link' => $link->link,
             'read_at' => $link->read_at?->toISOString(),
+            'source' => $link->source?->value,
             'favicon_url' => $link->favicon_url,
             'preview_image_url' => $link->preview_image_url,
             'tags' => $link->tags

@@ -17,6 +17,11 @@ export interface GroupOption {
     title: string;
 }
 
+/**
+ * How a link was captured. Null on links saved before the source was recorded.
+ */
+export type LinkSource = 'web' | 'extension' | 'api' | 'email' | 'import';
+
 export interface LinkItem {
     id: number;
     title: string | null;
@@ -25,6 +30,7 @@ export interface LinkItem {
     is_favorite: boolean;
     rating: number | null;
     read_at: string | null;
+    source: LinkSource | null;
     favicon_url: string | null;
     preview_image_url: string | null;
     tags: TagOption[];
