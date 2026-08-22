@@ -1,4 +1,6 @@
 import { Link } from '@inertiajs/react';
+import { GithubMark } from '@/components/landing/github-mark';
+import { APP_REPOSITORY_URL } from '@/lib/repositories';
 import { login, register } from '@/routes';
 import type { User } from '@/types';
 
@@ -46,6 +48,16 @@ export function LandingNav({ user, canRegister = true }: Props) {
                         className="hidden rounded-md px-3 py-2 text-[#1a1410]/70 hover:text-[#1a1410] sm:inline-block dark:text-white/70 dark:hover:text-white"
                     >
                         FAQ
+                    </a>
+                    <a
+                        href={APP_REPOSITORY_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Linkerlee is open source — view it on GitHub"
+                        className="hidden items-center gap-2 rounded-md px-3 py-2 text-[#1a1410]/70 hover:text-[#1a1410] sm:inline-flex dark:text-white/70 dark:hover:text-white"
+                    >
+                        <GithubMark className="size-4" />
+                        GitHub
                     </a>
                     <span className="mx-2 hidden h-5 w-px bg-[#1a141020] sm:inline-block dark:bg-white/15" />
 
