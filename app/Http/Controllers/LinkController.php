@@ -167,6 +167,7 @@ class LinkController extends Controller
         if ($urlChanged) {
             $link->extraction_status = ExtractionStatus::Pending;
             $link->extraction_error = null;
+            $link->forceFill(self::freshHealthState());
         }
 
         $link->save();
@@ -379,6 +380,30 @@ class LinkController extends Controller
                 'name' => $name,
             ])
             ->all();
+    }
+
+    /**
+     * The health state a link starts over with once its URL is edited: the
+     * old page's status, failures and validators say nothing about the new
+     * one. The first check is scheduled here because the new URL's
+     * extraction is not the link's first snapshot, so the recorder will not
+     * schedule it.
+     *
+     * @return array<string, mixed>
+     */
+    private static function freshHealthState(): array
+    {
+        $initialIntervalDays = (int) config('link_health.initial_interval_days');
+
+        return [
+            'health_status' => null,
+            'redirect_url' => null,
+            'consecutive_failures' => 0,
+            'etag' => null,
+            'last_modified' => null,
+            'check_interval_days' => $initialIntervalDays,
+            'next_check_at' => now()->addDays($initialIntervalDays),
+        ];
     }
 
     protected function authorizeOwnership(Link $link): void

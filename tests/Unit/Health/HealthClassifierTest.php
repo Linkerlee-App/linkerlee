@@ -19,6 +19,8 @@ describe('classifyResponse', function () {
         '200 OK' => [200, 'example.com', 'example.com', false, HealthStatus::Ok],
         '204 No Content' => [204, 'example.com', 'example.com', false, HealthStatus::Ok],
         '299 edge of 2xx' => [299, 'example.com', 'example.com', false, HealthStatus::Ok],
+        '304 Not Modified' => [304, 'example.com', 'example.com', false, HealthStatus::Ok],
+        '304 after a 301 to a different host' => [304, 'example.com', 'other.com', true, HealthStatus::Redirected],
         '301 to a different host' => [301, 'example.com', 'other.com', true, HealthStatus::Redirected],
         '308 to a different host' => [308, 'example.com', 'other.com', true, HealthStatus::Redirected],
         '200 after a 301 to a different host' => [200, 'example.com', 'other.com', true, HealthStatus::Redirected],

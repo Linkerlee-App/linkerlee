@@ -91,6 +91,10 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
      * recorder has already queued a fresh extraction, and only
      * `last_checked_at` is written.
      *
+     * A 304 is a success: the validators come from the last good fetch, so
+     * the page is Ok (or Redirected, via the chain) and unchanged, with no
+     * extraction.
+     *
      * A bot wall (401/403/429 at the probe, or a Blocked extraction) is
      * "unknown": the status and failure count stand and the interval grows.
      * An Unsupported extraction (a PDF, an image) is a live page with no text
@@ -104,12 +108,6 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
 
         $url = $this->link->link;
         $probe = $this->probe($url, $classifier);
-
-        if ($probe['status'] === 304) {
-            $this->finish($schedule, CheckOutcome::Unchanged, $this->link->health_status ?? HealthStatus::Ok, 0);
-
-            return;
-        }
 
         if (in_array($probe['status'], self::BLOCKED_STATUSES, true)) {
             $this->finishUnknown($schedule);
@@ -132,8 +130,15 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
             return;
         }
 
-        $result = $scraping->extractFor($probe['finalUrl']);
         $redirectUrl = $health === HealthStatus::Redirected ? $probe['finalUrl'] : null;
+
+        if ($probe['status'] === 304) {
+            $this->finish($schedule, CheckOutcome::Unchanged, $health, 0, ['redirect_url' => $redirectUrl]);
+
+            return;
+        }
+
+        $result = $scraping->extractFor($probe['finalUrl']);
 
         if ($result->status === ExtractionStatus::Blocked) {
             $this->finishUnknown($schedule);

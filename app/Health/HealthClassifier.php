@@ -22,8 +22,10 @@ class HealthClassifier
      * permanent redirect that ends on a genuinely different host, and whose
      * final response is not a 4xx/5xx, counts as
      * {@see HealthStatus::Redirected}. A redirect that ends on a missing or
-     * failing page is classified by that page. Everything else that isn't
-     * 2xx, 404/410, is treated as {@see HealthStatus::Error}, including
+     * failing page is classified by that page. A 304 is a success like a 2xx:
+     * the probe only sends validators taken from the last good fetch, so it
+     * means the page is still that page. Everything else that isn't 2xx,
+     * 304 or 404/410 is treated as {@see HealthStatus::Error}, including
      * temporary redirects and permanent redirects that stay on the same
      * host.
      */
@@ -33,7 +35,7 @@ class HealthClassifier
             return HealthStatus::Redirected;
         }
 
-        if ($status >= 200 && $status < 300) {
+        if (($status >= 200 && $status < 300) || $status === 304) {
             return HealthStatus::Ok;
         }
 

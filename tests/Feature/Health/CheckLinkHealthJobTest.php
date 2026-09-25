@@ -180,6 +180,49 @@ test('a 304 on a never-checked link marks it ok', function () {
     expect($this->link->fresh()->health_status)->toBe(HealthStatus::Ok);
 });
 
+test('a 304 on a gone link is a success: ok, failures reset and the stale redirect_url cleared', function () {
+    $link = givenSnapshot($this->link, healthArticle('back'), [
+        'health_status' => HealthStatus::Gone,
+        'consecutive_failures' => 4,
+        'redirect_url' => 'https://stale.test/old',
+        'etag' => '"v1"',
+    ]);
+    FakeExtractor::reset();
+    Http::fake(['https://example.com/article' => Http::response('', 304)]);
+
+    runHealthCheck($link);
+    $link->refresh();
+
+    expect(FakeExtractor::$calls)->toBe([])
+        ->and($link->health_status)->toBe(HealthStatus::Ok)
+        ->and($link->consecutive_failures)->toBe(0)
+        ->and($link->redirect_url)->toBeNull()
+        ->and($link->check_interval_days)->toBe(14)
+        ->and($link->next_check_at->equalTo(now()->addDays(14)))->toBeTrue();
+});
+
+test('a permanent redirect chain ending in a 304 is redirected and stores redirect_url', function () {
+    $link = givenSnapshot($this->link, healthArticle('moved'), [
+        'health_status' => HealthStatus::Error,
+        'consecutive_failures' => 3,
+        'etag' => '"v1"',
+    ]);
+    FakeExtractor::reset();
+    Http::fake([
+        'https://example.com/article' => Http::response('', 301, ['Location' => 'https://new-home.test/article']),
+        'https://new-home.test/article' => Http::response('', 304),
+    ]);
+
+    runHealthCheck($link);
+    $link->refresh();
+
+    expect(FakeExtractor::$calls)->toBe([])
+        ->and($link->health_status)->toBe(HealthStatus::Redirected)
+        ->and($link->redirect_url)->toBe('https://new-home.test/article')
+        ->and($link->consecutive_failures)->toBe(0)
+        ->and($link->check_interval_days)->toBe(14);
+});
+
 test('the conditional headers are only sent when the link has validators', function () {
     Http::fake(['https://example.com/article' => Http::response('', 200)]);
 
