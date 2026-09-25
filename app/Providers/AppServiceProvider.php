@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Enrichment\EmbeddingManager;
+use App\Enrichment\SummaryManager;
 use App\Events\LinkCreated;
 use App\Jobs\ExtractContentJob;
 use App\Scraping\ScrapingManager;
@@ -22,6 +24,8 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(ScrapingManager::class, fn ($app): ScrapingManager => new ScrapingManager($app));
+        $this->app->singleton(SummaryManager::class, fn ($app): SummaryManager => new SummaryManager($app));
+        $this->app->singleton(EmbeddingManager::class, fn ($app): EmbeddingManager => new EmbeddingManager($app));
     }
 
     /**

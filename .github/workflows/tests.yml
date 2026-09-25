@@ -21,8 +21,10 @@ jobs:
         php-version: ['8.4', '8.5']
 
     services:
+      # pgvector/pgvector:pg17 is postgres:17 plus the pgvector extension,
+      # which content_chunks.embedding needs.
       postgres:
-        image: postgres:17
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_USER: linkerlee
           POSTGRES_PASSWORD: linkerlee

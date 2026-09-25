@@ -1,0 +1,87 @@
+<?php
+
+use App\Enrichment\Providers\AnthropicSummaryProvider;
+use App\Enrichment\Providers\FakeEmbeddingProvider;
+use App\Enrichment\Providers\FakeSummaryProvider;
+use App\Enrichment\Providers\OllamaEmbeddingProvider;
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Summaries
+    |--------------------------------------------------------------------------
+    |
+    | Produces the 2-3 sentence summary stored on a link_snapshot. "fake" is
+    | forced in tests (SUMMARY_DRIVER=fake in phpunit.xml), so no test ever
+    | calls the Anthropic API.
+    |
+    */
+
+    'summary' => [
+        'driver' => env('SUMMARY_DRIVER', 'anthropic'),
+
+        'drivers' => [
+            'anthropic' => AnthropicSummaryProvider::class,
+            'fake' => FakeSummaryProvider::class,
+        ],
+
+        'anthropic' => [
+            'api_key' => env('ANTHROPIC_API_KEY'),
+            'model' => env('SUMMARY_MODEL', 'claude-haiku-4-5'),
+            'max_input_chars' => 24000,
+            'timeout' => (int) env('SUMMARY_TIMEOUT', 30),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Embeddings
+    |--------------------------------------------------------------------------
+    |
+    | Produces the vectors stored on content_chunks.embedding. "fake" is
+    | forced in tests (EMBEDDING_DRIVER=fake in phpunit.xml), so no test
+    | ever calls a local Ollama server.
+    |
+    */
+
+    'embedding' => [
+        'driver' => env('EMBEDDING_DRIVER', 'ollama'),
+
+        'drivers' => [
+            'ollama' => OllamaEmbeddingProvider::class,
+            'fake' => FakeEmbeddingProvider::class,
+        ],
+
+        'ollama' => [
+            'url' => env('OLLAMA_URL', 'http://127.0.0.1:11434'),
+            'model' => env('EMBEDDING_MODEL', 'nomic-embed-text'),
+            'dimensions' => (int) env('EMBEDDING_DIMENSIONS', 768),
+            // nomic-embed-text expects task-specific prefixes on its input
+            // text. Chunk text is a document being indexed, so it is
+            // prepended with this before it is embedded.
+            'document_prefix' => 'search_document: ',
+            'timeout' => (int) env('OLLAMA_TIMEOUT', 60),
+        ],
+
+        'batch_size' => 32,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Chunking
+    |--------------------------------------------------------------------------
+    |
+    | How a snapshot's content_text is split into content_chunks before
+    | embedding. chars_per_token is a rough estimate used to convert a token
+    | budget into a character budget without a real tokenizer.
+    |
+    */
+
+    'chunking' => [
+        'size_tokens' => 800,
+        'overlap_tokens' => 100,
+        'chars_per_token' => 4,
+    ],
+
+];
