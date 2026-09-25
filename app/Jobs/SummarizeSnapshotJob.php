@@ -13,7 +13,8 @@ use Illuminate\Foundation\Queue\Queueable;
  * enrichment chain.
  *
  * Idempotent: a snapshot already summarized by the model in use is left
- * alone, so only a model change (the `$model` override) re-summarizes it.
+ * alone, so only a model change (the `$model` override) or `$force`
+ * re-summarizes it.
  * A provider failure ({@see EnrichmentProviderException}) is left to fail the
  * job, which retries under {@see self::backoff()}; it never touches the link's
  * extraction status or the snapshot's text.
@@ -32,8 +33,9 @@ class SummarizeSnapshotJob implements ShouldQueue
 
     /**
      * @param  string|null  $model  Summarize with this model instead of the configured default.
+     * @param  bool  $force  Re-summarize even when the snapshot already has a summary from the model in use (used by `linkerlee:resummarize --all`).
      */
-    public function __construct(public LinkSnapshot $snapshot, public ?string $model = null)
+    public function __construct(public LinkSnapshot $snapshot, public ?string $model = null, public bool $force = false)
     {
         $this->onQueue('enrichment');
     }
@@ -57,7 +59,7 @@ class SummarizeSnapshotJob implements ShouldQueue
 
         $provider = $summaries->provider($this->model);
 
-        if ($this->snapshot->summary !== null && $this->snapshot->summary_model === $provider->model()) {
+        if (! $this->force && $this->snapshot->summary !== null && $this->snapshot->summary_model === $provider->model()) {
             return;
         }
 
