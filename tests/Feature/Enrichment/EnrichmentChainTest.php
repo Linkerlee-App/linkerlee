@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
     Http::preventStrayRequests();
@@ -402,4 +403,106 @@ test('embed works in batches of batch_size and prepends the driver document pref
     ])
         ->and(ContentChunk::query()->where('text', 'one')->sole()->embedding)->toEqualWithDelta($expected, 0.0001)
         ->and(ContentChunk::query()->where('text', 'one')->sole()->text)->toBe('one');
+});
+
+test('embed skips the document prefix when a model override replaces the driver default model', function () {
+    config()->set('enrichment.embedding.fake.document_prefix', 'search_document: ');
+
+    $snapshot = latestSnapshotFor($this->link);
+    ContentChunk::factory()->create(['link_snapshot_id' => $snapshot->id, 'link_id' => $this->link->id, 'ordinal' => 0, 'text' => 'plain']);
+
+    EmbedChunksJob::dispatchSync($snapshot, 'other-embedding');
+
+    expect(FakeEmbeddingProvider::$calls)->toBe([['plain']]);
+});
+
+test('embed handles one batch per run and re-dispatches itself while chunks remain', function () {
+    config()->set('enrichment.embedding.batch_size', 32);
+
+    $snapshot = latestSnapshotFor($this->link);
+
+    foreach (range(0, 69) as $ordinal) {
+        ContentChunk::factory()->create(['link_snapshot_id' => $snapshot->id, 'link_id' => $this->link->id, 'ordinal' => $ordinal, 'text' => "chunk {$ordinal}"]);
+    }
+
+    Queue::fake();
+
+    app()->call([new EmbedChunksJob($snapshot, 'other-embedding'), 'handle']);
+
+    expect(FakeEmbeddingProvider::$calls)->toHaveCount(1)
+        ->and(FakeEmbeddingProvider::$calls[0])->toHaveCount(32)
+        ->and(ContentChunk::query()->whereNull('embedding')->count())->toBe(38);
+
+    Queue::assertPushedOn('enrichment', EmbedChunksJob::class, fn (EmbedChunksJob $job): bool => $job->snapshot->is($snapshot) && $job->model === 'other-embedding');
+    Queue::assertPushedTimes(EmbedChunksJob::class, 1);
+});
+
+test('70 chunks with a batch size of 32 are embedded by three job runs', function () {
+    config()->set('enrichment.embedding.batch_size', 32);
+
+    $snapshot = latestSnapshotFor($this->link);
+
+    foreach (range(0, 69) as $ordinal) {
+        ContentChunk::factory()->create(['link_snapshot_id' => $snapshot->id, 'link_id' => $this->link->id, 'ordinal' => $ordinal, 'text' => "chunk {$ordinal}"]);
+    }
+
+    EmbedChunksJob::dispatchSync($snapshot);
+
+    expect(array_map('count', FakeEmbeddingProvider::$calls))->toBe([32, 32, 6])
+        ->and(ContentChunk::query()->whereNull('embedding')->count())->toBe(0);
+});
+
+test('the enrichment jobs stay inside the database queue retry_after', function () {
+    $snapshot = LinkSnapshot::factory()->create();
+
+    expect((new EmbedChunksJob($snapshot))->timeout)->toBe(80)
+        ->and((new SummarizeSnapshotJob($snapshot))->timeout)->toBe(60)
+        ->and(config('queue.connections.database.retry_after'))->toBeGreaterThan(80);
+});
+
+test('chunking stops at max_chunks and keeps the full text on the snapshot', function () {
+    config()->set('enrichment.chunking.max_chunks', 3);
+
+    $snapshot = latestSnapshotFor($this->link, ['content_text' => longText()]);
+
+    ChunkSnapshotJob::dispatchSync($snapshot);
+
+    expect(ContentChunk::query()->where('link_snapshot_id', $snapshot->id)->pluck('ordinal')->sort()->values()->all())->toBe([0, 1, 2])
+        ->and($snapshot->fresh()->content_text)->toBe(longText());
+});
+
+test('a stale chunk job that loses the race to a newer snapshot inserts nothing and keeps the new chunks', function () {
+    $old = recordText($this->link, longText('old'));
+    $new = LinkSnapshot::factory()->create(['link_id' => $this->link->id, 'title' => 'New', 'content_text' => 'New body.']);
+    ContentChunk::query()->where('link_snapshot_id', $old->id)->delete();
+    ContentChunk::factory()->create(['link_snapshot_id' => $new->id, 'link_id' => $this->link->id, 'ordinal' => 0, 'text' => 'New']);
+
+    /**
+     * Once the stale job's isCurrent() check has read the link, the newer
+     * snapshot becomes current, as it would if its recorder committed in
+     * between.
+     */
+    $flipped = false;
+    Link::retrieved(function (Link $link) use (&$flipped, $new): void {
+        if (! $flipped) {
+            $flipped = true;
+            DB::table('links')->where('id', $link->id)->update(['latest_snapshot_id' => $new->id]);
+        }
+    });
+
+    ChunkSnapshotJob::dispatchSync($old);
+
+    expect(ContentChunk::query()->where('link_id', $this->link->id)->get(['link_snapshot_id', 'text'])->toArray())
+        ->toBe([['link_snapshot_id' => $new->id, 'text' => 'New']]);
+});
+
+test('the chunk swap replaces every chunk of the link, from any snapshot, in one step', function () {
+    $old = recordText($this->link, longText('old'));
+    $new = latestSnapshotFor($this->link, ['title' => 'New', 'content_text' => 'New body.']);
+
+    expect(ContentChunk::query()->where('link_snapshot_id', $old->id)->count())->toBeGreaterThan(0);
+
+    ChunkSnapshotJob::dispatchSync($new);
+
+    expect(ContentChunk::query()->where('link_id', $this->link->id)->pluck('link_snapshot_id')->unique()->all())->toBe([$new->id]);
 });

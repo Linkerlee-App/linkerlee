@@ -39,6 +39,12 @@ class SummarizeSnapshotJob implements ShouldQueue
     public int $tries = 5;
 
     /**
+     * Kept below the database queue's `retry_after` (90s), so a slow
+     * provider call is killed before the job could be handed out twice.
+     */
+    public int $timeout = 60;
+
+    /**
      * A link force-deleted (and its snapshots with it) before the job runs
      * makes the job vanish quietly.
      */

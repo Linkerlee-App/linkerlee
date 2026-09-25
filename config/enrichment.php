@@ -69,7 +69,9 @@ return [
             'timeout' => (int) env('OLLAMA_TIMEOUT', 60),
         ],
 
-        'batch_size' => 32,
+        // Chunks sent per embedding request. EmbedChunksJob embeds one batch
+        // per run and re-dispatches itself, so this also bounds a job's run.
+        'batch_size' => (int) env('EMBEDDING_BATCH_SIZE', 32),
     ],
 
     /*
@@ -79,7 +81,9 @@ return [
     |
     | How a snapshot's content_text is split into content_chunks before
     | embedding. chars_per_token is a rough estimate used to convert a token
-    | budget into a character budget without a real tokenizer.
+    | budget into a character budget without a real tokenizer. max_chunks caps
+    | the chunks per snapshot (chunk 0 included): the rest of an enormous page
+    | is left out of search, but its full text stays on the snapshot.
     |
     */
 
@@ -87,6 +91,7 @@ return [
         'size_tokens' => 800,
         'overlap_tokens' => 100,
         'chars_per_token' => 4,
+        'max_chunks' => 500,
     ],
 
 ];

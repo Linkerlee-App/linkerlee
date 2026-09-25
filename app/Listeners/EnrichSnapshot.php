@@ -6,7 +6,6 @@ use App\Events\LinkSnapshotCreated;
 use App\Jobs\ChunkSnapshotJob;
 use App\Jobs\EmbedChunksJob;
 use App\Jobs\SummarizeSnapshotJob;
-use App\Models\ContentChunk;
 use Illuminate\Support\Facades\Bus;
 
 /**
@@ -22,18 +21,14 @@ use Illuminate\Support\Facades\Bus;
 class EnrichSnapshot
 {
     /**
-     * The link's other snapshots lose their chunks first, since only the
-     * latest text is searchable. Their `content_text` stays, so their
-     * chunks can always be rebuilt.
+     * The link's older chunks are replaced by {@see ChunkSnapshotJob} in the
+     * same transaction that inserts the new ones, so the link is never left
+     * without chunks while the chain is pending. Older snapshots keep their
+     * `content_text`, so their chunks can always be rebuilt.
      */
     public function handle(LinkSnapshotCreated $event): void
     {
         $snapshot = $event->snapshot;
-
-        ContentChunk::query()
-            ->where('link_id', $snapshot->link_id)
-            ->where('link_snapshot_id', '!=', $snapshot->id)
-            ->delete();
 
         SummarizeSnapshotJob::dispatch($snapshot);
 

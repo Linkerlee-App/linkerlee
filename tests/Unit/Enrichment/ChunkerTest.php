@@ -152,3 +152,14 @@ test('defaults come from the enrichment.chunking config', function () {
 
     expect($chunks)->toHaveCount(3);
 });
+
+test('stops after max_chunks, counting chunk 0', function () {
+    $chunker = new Chunker(sizeTokens: 50, overlapTokens: 10, charsPerToken: 4, maxChunks: 3);
+    $text = implode("\n\n", array_map(fn (int $i): string => paragraphOfLength("p{$i}", 180), range(1, 6)));
+
+    $chunks = $chunker->chunk('Title', null, $text);
+
+    expect($chunks)->toHaveCount(3)
+        ->and($chunks[0]['text'])->toBe('Title')
+        ->and($this->chunker->chunk('Title', null, $text))->toHaveCount(7);
+});

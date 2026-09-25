@@ -16,6 +16,10 @@ namespace App\Enrichment;
  * at most that overlap. A paragraph larger than `size_tokens` is split on
  * sentence boundaries, and a sentence that is still too large is cut into
  * hard character slices.
+ *
+ * At most `max_chunks` chunks (chunk 0 included) are returned; the rest of an
+ * enormous page is left out of search, though its full text stays on the
+ * snapshot.
  */
 final class Chunker
 {
@@ -25,11 +29,14 @@ final class Chunker
 
     private readonly int $charsPerToken;
 
-    public function __construct(?int $sizeTokens = null, ?int $overlapTokens = null, ?int $charsPerToken = null)
+    private readonly int $maxChunks;
+
+    public function __construct(?int $sizeTokens = null, ?int $overlapTokens = null, ?int $charsPerToken = null, ?int $maxChunks = null)
     {
         $this->sizeTokens = max(1, $sizeTokens ?? (int) config('enrichment.chunking.size_tokens'));
         $this->overlapTokens = max(0, $overlapTokens ?? (int) config('enrichment.chunking.overlap_tokens'));
         $this->charsPerToken = max(1, $charsPerToken ?? (int) config('enrichment.chunking.chars_per_token'));
+        $this->maxChunks = max(1, $maxChunks ?? (int) config('enrichment.chunking.max_chunks', 500));
     }
 
     /**
@@ -39,10 +46,12 @@ final class Chunker
     {
         $head = $this->head($title, $summary);
 
-        return [
+        $chunks = [
             ...($head === null ? [] : [$head]),
             ...array_map($this->withTokenCount(...), $this->pack($this->units($text))),
         ];
+
+        return array_slice($chunks, 0, $this->maxChunks);
     }
 
     /**
