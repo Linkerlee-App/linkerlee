@@ -74,9 +74,24 @@ return [
 
     'keep_snapshots' => (int) env('SCRAPING_KEEP_SNAPSHOTS', 5),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Browsershot (headless Chrome)
+    |--------------------------------------------------------------------------
+    |
+    | WARNING: Chrome is not SSRF-guarded. Only the first URL is checked;
+    | Chrome then follows redirects, loads subresources and runs the page's
+    | JavaScript, any of which can reach localhost, the cloud metadata
+    | service or the private network. The driver stays disabled, even with
+    | the paths below set, until "allow_unguarded" is true. Leave it off
+    | until request interception exists.
+    |
+    */
+
     'browsershot' => [
         'chrome_path' => env('BROWSERSHOT_CHROME_PATH'),
         'node_binary' => env('BROWSERSHOT_NODE_BINARY'),
+        'allow_unguarded' => (bool) env('BROWSERSHOT_ALLOW_UNGUARDED', false),
     ],
 
     'jina' => [

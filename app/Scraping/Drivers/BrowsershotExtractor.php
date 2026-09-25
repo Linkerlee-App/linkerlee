@@ -16,8 +16,13 @@ use Throwable;
  *
  * There is no local Chrome on most hosts, so {@see self::supports()} is
  * false unless one has been configured; `App\Scraping\ScrapingManager`
- * (task 1.3) skips a driver whose supports() says no rather than trying it
- * and failing.
+ * skips a driver whose supports() says no rather than trying it and failing.
+ *
+ * Chrome is NOT SSRF-guarded: {@see UrlGuard} vets only the first URL, while
+ * Chrome follows redirects, loads subresources and runs the page's own
+ * JavaScript, any of which can reach a private address. So supports() is
+ * also false until `scraping.browsershot.allow_unguarded` is explicitly
+ * true, which should stay off until request interception exists.
  */
 final class BrowsershotExtractor implements ContentExtractor
 {
@@ -25,6 +30,10 @@ final class BrowsershotExtractor implements ContentExtractor
 
     public function supports(string $url): bool
     {
+        if (config('scraping.browsershot.allow_unguarded') !== true) {
+            return false;
+        }
+
         return filled(config('scraping.browsershot.chrome_path'))
             || filled(config('scraping.browsershot.node_binary'));
     }
