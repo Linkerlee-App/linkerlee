@@ -10,11 +10,14 @@ use App\Models\ContentChunk;
 use Illuminate\Support\Facades\Bus;
 
 /**
- * Enriches a newly stored snapshot: summarize, chunk, then embed, chained on
- * the `enrichment` queue so a provider outage never holds up extraction.
+ * Enriches a newly stored snapshot on the `enrichment` queue, so a provider
+ * outage never holds up extraction. Two independent units are dispatched:
+ * {@see SummarizeSnapshotJob} on its own, and a chunk-then-embed chain, so a
+ * summary failure never blocks chunking and embedding. A summary that lands
+ * after the chunks rewrites chunk 0 itself.
  *
  * Registered explicitly in AppServiceProvider (event discovery is off), so
- * each event dispatches exactly one chain.
+ * each event dispatches exactly one of each.
  */
 class EnrichSnapshot
 {
@@ -32,8 +35,9 @@ class EnrichSnapshot
             ->where('link_snapshot_id', '!=', $snapshot->id)
             ->delete();
 
+        SummarizeSnapshotJob::dispatch($snapshot);
+
         Bus::chain([
-            new SummarizeSnapshotJob($snapshot),
             new ChunkSnapshotJob($snapshot),
             new EmbedChunksJob($snapshot),
         ])->onQueue('enrichment')->dispatch();

@@ -1,6 +1,7 @@
 <?php
 
 use App\Enrichment\EnrichmentProviderException;
+use App\Enrichment\NonRetryableProviderException;
 use App\Enrichment\Providers\AnthropicSummaryProvider;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -69,6 +70,31 @@ test('a non-2xx response throws', function () {
         ->toThrow(EnrichmentProviderException::class);
 });
 
+test('a request the API rejects as unauthorized, forbidden, malformed or for an unknown model is non-retryable', function (int $status) {
+    Http::fake([
+        'api.anthropic.com/*' => Http::response(['error' => ['type' => 'error']], $status),
+    ]);
+
+    expect(fn () => (new AnthropicSummaryProvider)->summarize('Title', 'Text'))
+        ->toThrow(NonRetryableProviderException::class);
+})->with([400, 401, 403, 404]);
+
+test('a rate limit or server error stays retryable', function (int $status) {
+    Http::fake([
+        'api.anthropic.com/*' => Http::response('busy', $status),
+    ]);
+
+    try {
+        (new AnthropicSummaryProvider)->summarize('Title', 'Text');
+    } catch (EnrichmentProviderException $exception) {
+        expect($exception)->not->toBeInstanceOf(NonRetryableProviderException::class);
+
+        return;
+    }
+
+    $this->fail('Expected an EnrichmentProviderException.');
+})->with([429, 500, 529]);
+
 test('a response missing content text throws', function () {
     Http::fake([
         'api.anthropic.com/*' => Http::response(['content' => []], 200),
@@ -78,11 +104,11 @@ test('a response missing content text throws', function () {
         ->toThrow(EnrichmentProviderException::class);
 });
 
-test('an empty api key throws immediately without any request', function () {
+test('an empty api key throws a non-retryable error immediately without any request', function () {
     config()->set('enrichment.summary.anthropic.api_key', '');
 
     expect(fn () => (new AnthropicSummaryProvider)->summarize('Title', 'Text'))
-        ->toThrow(EnrichmentProviderException::class);
+        ->toThrow(NonRetryableProviderException::class);
 
     Http::assertNothingSent();
 });

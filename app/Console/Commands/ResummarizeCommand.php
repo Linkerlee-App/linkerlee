@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Enrichment\NonRetryableProviderException;
+use App\Enrichment\Providers\AnthropicSummaryProvider;
 use App\Enrichment\Providers\NullSummaryProvider;
 use App\Enrichment\SummaryManager;
 use App\Jobs\ChunkSnapshotJob;
@@ -21,10 +23,13 @@ use Illuminate\Support\Facades\Bus;
  * non-trashed link). Without `--all` it targets a snapshot with no summary
  * yet, or one summarized by a different model than the target; `--all`
  * forces every current snapshot, even one already matching the target
- * model. A snapshot with no chunks yet — one whose earlier chain never
- * reached chunking, for instance after the summary step exhausted its
- * retries — gets the full chain re-run so it recovers without a separate
+ * model. A snapshot with no chunks yet — one whose chunk-then-embed chain
+ * never ran — also gets that chain, so it recovers without a separate
  * `linkerlee:rechunk`.
+ *
+ * Does nothing under the `none` summary driver, and refuses to start when
+ * the `anthropic` driver has no API key, rather than queuing a job per
+ * snapshot that could only fail.
  */
 class ResummarizeCommand extends Command
 {
@@ -56,6 +61,16 @@ class ResummarizeCommand extends Command
             return Command::SUCCESS;
         }
 
+        if ($provider instanceof AnthropicSummaryProvider) {
+            try {
+                $provider->assertConfigured();
+            } catch (NonRetryableProviderException $exception) {
+                $this->error("{$exception->getMessage()} Dispatching nothing.");
+
+                return Command::FAILURE;
+            }
+        }
+
         $target = $provider->model();
         $includeAll = (bool) $this->option('all');
         $sync = (bool) $this->option('sync');
@@ -82,9 +97,12 @@ class ResummarizeCommand extends Command
     }
 
     /**
-     * A snapshot that already has chunks only needs re-summarizing. One
-     * with none yet gets the whole chain, so a snapshot stuck mid-pipeline
-     * recovers fully instead of staying chunkless forever.
+     * A snapshot that already has chunks only needs re-summarizing: the job
+     * rewrites and re-embeds chunk 0 itself. One with none yet also gets the
+     * chunk-then-embed chain, dispatched independently of the summary so a
+     * summary failure never keeps it chunkless. Inline, the summary runs
+     * first so chunk 0 is cut with it, and the chain runs even when the
+     * summary throws; the exception is then rethrown to the caller.
      *
      * `$includeAll` (this run's `--all`) is passed through as the job's own
      * `force`, so a snapshot already matching the target model is
@@ -92,22 +110,30 @@ class ResummarizeCommand extends Command
      */
     private function resummarizeOne(LinkSnapshot $snapshot, ?string $model, bool $includeAll, bool $sync): void
     {
-        $hasChunks = ContentChunk::query()->where('link_snapshot_id', $snapshot->id)->exists();
+        $summarize = new SummarizeSnapshotJob($snapshot, $model, force: $includeAll);
 
-        if ($hasChunks) {
-            $sync
-                ? SummarizeSnapshotJob::dispatchSync($snapshot, $model, force: $includeAll)
-                : SummarizeSnapshotJob::dispatch($snapshot, $model, force: $includeAll);
+        if (ContentChunk::query()->where('link_snapshot_id', $snapshot->id)->exists()) {
+            $sync ? dispatch_sync($summarize) : dispatch($summarize);
 
             return;
         }
 
         $chain = Bus::chain([
-            new SummarizeSnapshotJob($snapshot, $model, force: $includeAll),
             new ChunkSnapshotJob($snapshot),
             new EmbedChunksJob($snapshot),
         ]);
 
-        $sync ? $chain->onConnection('sync')->dispatch() : $chain->onQueue('enrichment')->dispatch();
+        if (! $sync) {
+            dispatch($summarize);
+            $chain->onQueue('enrichment')->dispatch();
+
+            return;
+        }
+
+        try {
+            dispatch_sync($summarize);
+        } finally {
+            $chain->onConnection('sync')->dispatch();
+        }
     }
 }

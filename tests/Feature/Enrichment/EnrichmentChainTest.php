@@ -2,6 +2,7 @@
 
 use App\Enrichment\Contracts\SummaryProvider;
 use App\Enrichment\EnrichmentProviderException;
+use App\Enrichment\NonRetryableProviderException;
 use App\Enrichment\Providers\FakeEmbeddingProvider;
 use App\Enrichment\Providers\FakeSummaryProvider;
 use App\Enums\ExtractionStatus;
@@ -98,7 +99,7 @@ test('the chain turns a new snapshot into a summary and embedded chunks', functi
     expect(FakeSummaryProvider::$calls)->toHaveCount(1);
 });
 
-test('each LinkSnapshotCreated event dispatches exactly one chain on the enrichment queue', function () {
+test('each LinkSnapshotCreated event dispatches a summary job and a separate chunk-then-embed chain', function () {
     Bus::fake();
 
     $snapshot = latestSnapshotFor($this->link);
@@ -108,14 +109,16 @@ test('each LinkSnapshotCreated event dispatches exactly one chain on the enrichm
     expect(Event::getRawListeners()[LinkSnapshotCreated::class])->toBe([EnrichSnapshot::class]);
 
     Bus::assertDispatchedTimes(SummarizeSnapshotJob::class, 1);
+    Bus::assertDispatched(SummarizeSnapshotJob::class, fn (SummarizeSnapshotJob $job): bool => $job->queue === 'enrichment'
+        && $job->snapshot->is($snapshot)
+        && $job->model === null
+        && $job->chained === []);
     Bus::assertChained([
-        SummarizeSnapshotJob::class,
         ChunkSnapshotJob::class,
         EmbedChunksJob::class,
     ]);
-    Bus::assertDispatched(SummarizeSnapshotJob::class, fn (SummarizeSnapshotJob $job): bool => $job->queue === 'enrichment'
-        && $job->snapshot->is($snapshot)
-        && $job->model === null);
+    Bus::assertDispatched(ChunkSnapshotJob::class, fn (ChunkSnapshotJob $job): bool => $job->queue === 'enrichment'
+        && $job->snapshot->is($snapshot));
 });
 
 test('the jobs share their queue and retry settings', function (object $job) {
@@ -142,14 +145,19 @@ test('a new snapshot deletes the old snapshot chunks but keeps its content_text'
         ->and($old->fresh()->content_text)->toBe(longText('old'));
 });
 
-test('a throwing summary provider leaves the extraction and snapshot intact and releases the job for retry', function () {
-    config()->set('queue.default', 'database');
-
-    app()->bind(FakeSummaryProvider::class, fn (): SummaryProvider => new class implements SummaryProvider
+/**
+ * Binds the fake summary driver to a provider that always throws the given
+ * exception.
+ */
+function bindThrowingSummaryProvider(Throwable $exception): void
+{
+    app()->bind(FakeSummaryProvider::class, fn (): SummaryProvider => new class($exception) implements SummaryProvider
     {
+        public function __construct(private readonly Throwable $exception) {}
+
         public function summarize(string $title, string $text): string
         {
-            throw new EnrichmentProviderException('Anthropic is down');
+            throw $this->exception;
         }
 
         public function model(): string
@@ -157,23 +165,99 @@ test('a throwing summary provider leaves the extraction and snapshot intact and 
             return 'fake-summary';
         }
     });
+}
+
+test('a throwing summary provider still leaves the snapshot chunked and embedded, and releases the summary job for retry', function () {
+    config()->set('queue.default', 'database');
+    bindThrowingSummaryProvider(new EnrichmentProviderException('Anthropic is down'));
 
     $snapshot = recordText($this->link, longText());
 
-    expect(DB::table('jobs')->where('queue', 'enrichment')->count())->toBe(1);
+    expect(DB::table('jobs')->where('queue', 'enrichment')->count())->toBe(2);
 
-    Artisan::call('queue:work', ['connection' => 'database', '--queue' => 'enrichment', '--once' => true]);
+    $startedAt = now()->getTimestamp();
+
+    Artisan::call('queue:work', ['connection' => 'database', '--queue' => 'enrichment', '--stop-when-empty' => true]);
 
     $job = DB::table('jobs')->where('queue', 'enrichment')->sole();
     $fresh = $snapshot->fresh();
+    $chunks = ContentChunk::query()->where('link_snapshot_id', $snapshot->id)->get();
 
-    expect($job->attempts)->toBe(1)
-        ->and($job->available_at)->toBeGreaterThanOrEqual(now()->addSeconds(59)->getTimestamp())
+    expect($job->payload)->toContain('SummarizeSnapshotJob')
+        ->and($job->attempts)->toBe(1)
+        ->and($job->available_at)->toBeGreaterThanOrEqual($startedAt + 60)
         ->and(DB::table('failed_jobs')->count())->toBe(0)
         ->and($this->link->fresh()->extraction_status)->toBe(ExtractionStatus::Ok)
         ->and($fresh->content_text)->toBe(longText())
         ->and($fresh->summary)->toBeNull()
-        ->and(ContentChunk::query()->count())->toBe(0);
+        ->and($chunks->count())->toBeGreaterThan(1)
+        ->and($chunks->whereNull('embedding')->count())->toBe(0)
+        ->and($chunks->firstWhere('ordinal', 0)->text)->toBe('Article title');
+});
+
+test('a non-retryable provider error fails the summary job after one attempt', function () {
+    config()->set('queue.default', 'database');
+    config()->set('enrichment.summary.driver', 'anthropic');
+    config()->set('enrichment.summary.anthropic.api_key', '');
+
+    $snapshot = latestSnapshotFor($this->link);
+
+    SummarizeSnapshotJob::dispatch($snapshot);
+
+    Artisan::call('queue:work', ['connection' => 'database', '--queue' => 'enrichment', '--once' => true]);
+
+    Http::assertNothingSent();
+
+    expect(DB::table('jobs')->count())->toBe(0)
+        ->and(DB::table('failed_jobs')->count())->toBe(1)
+        ->and(DB::table('failed_jobs')->value('exception'))->toContain(NonRetryableProviderException::class)
+        ->and($snapshot->fresh()->summary)->toBeNull();
+});
+
+test('a later summary rewrites chunk 0 as title plus summary and re-embeds only chunk 0', function () {
+    $snapshot = latestSnapshotFor($this->link, ['title' => 'Late title', 'summary' => null, 'summary_model' => null, 'content_text' => longText()]);
+
+    ChunkSnapshotJob::dispatchSync($snapshot);
+    EmbedChunksJob::dispatchSync($snapshot);
+
+    $bodyBefore = ContentChunk::query()->where('ordinal', '>', 0)->orderBy('ordinal')->get(['id', 'text', 'embedding'])->toArray();
+
+    expect(ContentChunk::query()->where('ordinal', 0)->sole()->text)->toBe('Late title');
+
+    FakeEmbeddingProvider::reset();
+
+    SummarizeSnapshotJob::dispatchSync($snapshot);
+
+    $head = ContentChunk::query()->where('ordinal', 0)->sole();
+    $expected = (new FakeEmbeddingProvider)->embed(["Late title\n\nSummary of Late title"])[0];
+
+    expect($head->text)->toBe("Late title\n\nSummary of Late title")
+        ->and($head->token_count)->toBe((int) ceil(mb_strlen($head->text) / 4))
+        ->and($head->embedding)->toEqualWithDelta($expected, 0.0001)
+        ->and($head->embedding_model)->toBe('fake-embedding')
+        ->and(FakeEmbeddingProvider::$calls[0])->toBe(["Late title\n\nSummary of Late title"])
+        ->and(ContentChunk::query()->where('ordinal', '>', 0)->orderBy('ordinal')->get(['id', 'text', 'embedding'])->toArray())->toBe($bodyBefore);
+});
+
+test('a later summary for a snapshot with no title inserts a new chunk 0 and keeps the body chunks and their embeddings', function () {
+    $snapshot = latestSnapshotFor($this->link, ['title' => null, 'summary' => null, 'summary_model' => null, 'content_text' => longText()]);
+
+    ChunkSnapshotJob::dispatchSync($snapshot);
+    EmbedChunksJob::dispatchSync($snapshot);
+
+    $bodyBefore = ContentChunk::query()->orderBy('ordinal')->get(['id', 'text', 'embedding'])->toArray();
+
+    FakeEmbeddingProvider::reset();
+
+    SummarizeSnapshotJob::dispatchSync($snapshot);
+
+    $chunks = ContentChunk::query()->orderBy('ordinal')->get();
+
+    expect($chunks->pluck('ordinal')->all())->toBe(range(0, count($bodyBefore)))
+        ->and($chunks->first()->text)->toBe('Summary of')
+        ->and($chunks->first()->embedding)->toHaveCount(768)
+        ->and(FakeEmbeddingProvider::$calls)->toBe([['Summary of']])
+        ->and($chunks->slice(1)->values()->map(fn (ContentChunk $chunk): array => ['id' => $chunk->id, 'text' => $chunk->text, 'embedding' => $chunk->embedding])->all())->toBe($bodyBefore);
 });
 
 test('a superseded snapshot makes every job in the chain a no-op', function () {
@@ -212,7 +296,7 @@ test('a job whose link was force-deleted before it ran vanishes quietly', functi
     recordText($this->link, longText());
     $this->link->forceDelete();
 
-    Artisan::call('queue:work', ['connection' => 'database', '--queue' => 'enrichment', '--once' => true]);
+    Artisan::call('queue:work', ['connection' => 'database', '--queue' => 'enrichment', '--stop-when-empty' => true]);
 
     expect(DB::table('jobs')->count())->toBe(0)
         ->and(DB::table('failed_jobs')->count())->toBe(0)

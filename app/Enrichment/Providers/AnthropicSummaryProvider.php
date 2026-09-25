@@ -4,6 +4,7 @@ namespace App\Enrichment\Providers;
 
 use App\Enrichment\Contracts\SummaryProvider;
 use App\Enrichment\EnrichmentProviderException;
+use App\Enrichment\NonRetryableProviderException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
@@ -18,6 +19,12 @@ final class AnthropicSummaryProvider implements SummaryProvider
     private const ANTHROPIC_VERSION = '2023-06-01';
 
     private const MAX_TOKENS = 200;
+
+    /**
+     * Statuses for a request that will fail the same way however often it
+     * is retried: malformed, unauthorized, forbidden, unknown model.
+     */
+    private const NON_RETRYABLE_STATUSES = [400, 401, 403, 404];
 
     private readonly string $model;
 
@@ -36,13 +43,21 @@ final class AnthropicSummaryProvider implements SummaryProvider
         return new self($model);
     }
 
+    /**
+     * @throws NonRetryableProviderException when ANTHROPIC_API_KEY is not set
+     */
+    public function assertConfigured(): void
+    {
+        if ((string) config('enrichment.summary.anthropic.api_key') === '') {
+            throw new NonRetryableProviderException('Cannot summarize: enrichment.summary.anthropic.api_key (ANTHROPIC_API_KEY) is not set.');
+        }
+    }
+
     public function summarize(string $title, string $text): string
     {
-        $apiKey = (string) config('enrichment.summary.anthropic.api_key');
+        $this->assertConfigured();
 
-        if ($apiKey === '') {
-            throw new EnrichmentProviderException('Cannot summarize: enrichment.summary.anthropic.api_key (ANTHROPIC_API_KEY) is not set.');
-        }
+        $apiKey = (string) config('enrichment.summary.anthropic.api_key');
 
         $maxInputChars = (int) config('enrichment.summary.anthropic.max_input_chars');
         $prompt = $this->prompt($title, mb_substr($text, 0, $maxInputChars));
@@ -65,7 +80,11 @@ final class AnthropicSummaryProvider implements SummaryProvider
         }
 
         if ($response->failed()) {
-            throw new EnrichmentProviderException("Anthropic summary request failed with HTTP {$response->status()}: {$response->body()}");
+            $message = "Anthropic summary request failed with HTTP {$response->status()}: {$response->body()}";
+
+            throw in_array($response->status(), self::NON_RETRYABLE_STATUSES, true)
+                ? new NonRetryableProviderException($message)
+                : new EnrichmentProviderException($message);
         }
 
         $summary = $response->json('content.0.text');

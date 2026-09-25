@@ -11,6 +11,7 @@ use RuntimeException;
  *
  * Left uncaught, this fails the queued job that called the provider so it
  * retries under the job's own backoff, rather than storing a summary or an
- * embedding derived from a broken response.
+ * embedding derived from a broken response. The non-retryable cases are the
+ * {@see NonRetryableProviderException} subclass.
  */
-final class EnrichmentProviderException extends RuntimeException {}
+class EnrichmentProviderException extends RuntimeException {}

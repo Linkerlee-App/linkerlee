@@ -89,15 +89,17 @@ test('resummarize dispatches SummarizeSnapshotJob alone for a snapshot that alre
     Queue::assertNotPushed(ChunkSnapshotJob::class);
 });
 
-test('resummarize chains the full pipeline for a snapshot with no chunks yet', function () {
+test('resummarize dispatches the summary job and a separate chunk-then-embed chain for a snapshot with no chunks yet', function () {
     Bus::fake();
 
-    makeCurrentSnapshot();
+    $snapshot = makeCurrentSnapshot();
 
     $this->artisan('linkerlee:resummarize')->assertSuccessful();
 
+    Bus::assertDispatched(SummarizeSnapshotJob::class, fn (SummarizeSnapshotJob $job): bool => $job->snapshot->is($snapshot)
+        && $job->queue === 'enrichment'
+        && $job->chained === []);
     Bus::assertChained([
-        SummarizeSnapshotJob::class,
         ChunkSnapshotJob::class,
         EmbedChunksJob::class,
     ]);
@@ -128,7 +130,7 @@ test('resummarize --all forces every current snapshot, even one already matching
     Queue::assertPushedOn('enrichment', SummarizeSnapshotJob::class, fn (SummarizeSnapshotJob $job): bool => $job->snapshot->is($snapshot) && $job->force === true);
 });
 
-test('resummarize --all on a snapshot with no chunks yet chains a forced Summarize into Chunk and Embed', function () {
+test('resummarize --all on a snapshot with no chunks yet dispatches a forced Summarize beside the Chunk and Embed chain', function () {
     Bus::fake();
 
     $snapshot = makeCurrentSnapshot(['summary' => 'Existing summary', 'summary_model' => 'fake-summary']);
@@ -136,11 +138,47 @@ test('resummarize --all on a snapshot with no chunks yet chains a forced Summari
     $this->artisan('linkerlee:resummarize', ['--all' => true])->assertSuccessful();
 
     Bus::assertChained([
-        SummarizeSnapshotJob::class,
         ChunkSnapshotJob::class,
         EmbedChunksJob::class,
     ]);
     Bus::assertDispatched(SummarizeSnapshotJob::class, fn (SummarizeSnapshotJob $job): bool => $job->snapshot->is($snapshot) && $job->force === true);
+});
+
+test('resummarize --model rewrites chunk 0 with the new summary and re-embeds only chunk 0', function () {
+    $snapshot = makeCurrentSnapshot(['title' => 'Kept title', 'summary' => 'Old summary', 'summary_model' => 'fake-summary', 'content_text' => "Body one.\n\nBody two."]);
+
+    $this->artisan('linkerlee:rechunk', ['--sync' => true])->assertSuccessful();
+
+    expect(ContentChunk::query()->where('link_snapshot_id', $snapshot->id)->count())->toBeGreaterThan(1)
+        ->and(ContentChunk::query()->where('ordinal', 0)->sole()->text)->toBe("Kept title\n\nOld summary");
+
+    FakeEmbeddingProvider::reset();
+
+    $this->artisan('linkerlee:resummarize', ['--model' => 'x', '--sync' => true])->assertSuccessful();
+
+    $head = ContentChunk::query()->where('link_snapshot_id', $snapshot->id)->where('ordinal', 0)->sole();
+
+    expect($head->text)->toContain('Summary of Kept title')
+        ->and($head->embedding_model)->toBe('fake-embedding')
+        ->and(FakeEmbeddingProvider::$calls)->toBe([["Kept title\n\nSummary of Kept title"]])
+        ->and(ContentChunk::query()->whereNull('embedding')->count())->toBe(0);
+});
+
+test('resummarize with the anthropic driver and no api key exits 1 and dispatches nothing', function () {
+    Queue::fake();
+    Bus::fake();
+    config()->set('enrichment.summary.driver', 'anthropic');
+    config()->set('enrichment.summary.anthropic.api_key', '');
+
+    makeCurrentSnapshot();
+
+    $this->artisan('linkerlee:resummarize')
+        ->assertExitCode(1)
+        ->expectsOutputToContain('ANTHROPIC_API_KEY');
+
+    Queue::assertNothingPushed();
+    Bus::assertNothingDispatched();
+    Http::assertNothingSent();
 });
 
 test('resummarize --model overrides the target model and is passed through to the job', function () {

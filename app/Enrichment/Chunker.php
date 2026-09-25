@@ -37,19 +37,33 @@ final class Chunker
      */
     public function chunk(string $title, ?string $summary, string $text): array
     {
-        $texts = [];
+        $head = $this->head($title, $summary);
+
+        return [
+            ...($head === null ? [] : [$head]),
+            ...array_map($this->withTokenCount(...), $this->pack($this->units($text))),
+        ];
+    }
+
+    /**
+     * Chunk 0: the title and summary, or null when both are empty (the body
+     * then starts at chunk 0).
+     *
+     * @return array{text: string, token_count: int}|null
+     */
+    public function head(string $title, ?string $summary): ?array
+    {
         $head = trim($summary === null ? $title : "{$title}\n\n{$summary}");
 
-        if ($head !== '') {
-            $texts[] = $head;
-        }
+        return $head === '' ? null : $this->withTokenCount($head);
+    }
 
-        $texts = [...$texts, ...$this->pack($this->units($text))];
-
-        return array_map(fn (string $chunk): array => [
-            'text' => $chunk,
-            'token_count' => $this->tokens($chunk),
-        ], $texts);
+    /**
+     * @return array{text: string, token_count: int}
+     */
+    private function withTokenCount(string $chunk): array
+    {
+        return ['text' => $chunk, 'token_count' => $this->tokens($chunk)];
     }
 
     /**
