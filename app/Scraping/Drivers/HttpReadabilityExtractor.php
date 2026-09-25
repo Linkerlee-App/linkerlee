@@ -48,6 +48,10 @@ final class HttpReadabilityExtractor implements ContentExtractor
                 ->withUserAgent((string) config('scraping.user_agent'))
                 ->withOptions([
                     'stream' => true,
+                    // UrlGuard vets the host's A records only; pinning the
+                    // connection to IPv4 stops an AAAA record of ::1 (or of
+                    // an IPv4-mapped private address) from being used.
+                    'force_ip_resolve' => 'v4',
                     'allow_redirects' => [
                         'max' => self::MAX_REDIRECTS,
                         // The URL a link points to can redirect anywhere,

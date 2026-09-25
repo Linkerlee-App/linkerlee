@@ -59,3 +59,48 @@ test('rejects localhost, resolved via a stubbed resolver rather than a real DNS 
 
     expect(UrlGuard::check('http://localhost:5432'))->not->toBeNull();
 });
+
+test('rejects the carrier-grade nat range, which hosts the alibaba cloud metadata service', function () {
+    expect(UrlGuard::check('http://100.100.100.200/latest/meta-data'))->not->toBeNull()
+        ->and(UrlGuard::check('http://100.64.0.1'))->not->toBeNull()
+        ->and(UrlGuard::check('http://100.127.255.254'))->not->toBeNull();
+});
+
+test('allows public addresses just outside the carrier-grade nat range', function () {
+    expect(UrlGuard::check('http://100.63.255.255'))->toBeNull()
+        ->and(UrlGuard::check('http://100.128.0.1'))->toBeNull();
+});
+
+test('rejects a hostname that resolves into the carrier-grade nat range', function () {
+    UrlGuard::$resolver = fn (string $host): array|false => ['100.100.100.200'];
+
+    expect(UrlGuard::check('http://metadata.example.test'))->not->toBeNull();
+});
+
+test('rejects nat64 addresses that embed a private ipv4 address', function () {
+    expect(UrlGuard::check('http://[64:ff9b::a9fe:a9fe]'))->not->toBeNull()
+        ->and(UrlGuard::check('http://[64:ff9b::7f00:1]'))->not->toBeNull();
+});
+
+test('allows a public ipv6 address', function () {
+    expect(UrlGuard::check('http://[2606:4700:4700::1111]'))->toBeNull();
+});
+
+test('gives one generic message for unresolvable and private hosts, so it cannot be used to probe internal dns', function () {
+    UrlGuard::$resolver = fn (string $host): array|false => false;
+    $unresolvable = UrlGuard::check('https://does-not-resolve.example.test');
+
+    UrlGuard::$resolver = fn (string $host): array|false => ['10.1.2.3'];
+    $private = UrlGuard::check('https://internal.example.test');
+
+    $literal = UrlGuard::check('http://127.0.0.1');
+
+    expect($unresolvable)->toBe(UrlGuard::HOST_NOT_ALLOWED)
+        ->and($private)->toBe(UrlGuard::HOST_NOT_ALLOWED)
+        ->and($literal)->toBe(UrlGuard::HOST_NOT_ALLOWED)
+        ->and(UrlGuard::HOST_NOT_ALLOWED)->not->toContain('example.test');
+});
+
+test('rejects an ipv4-mapped ipv6 literal of the cloud metadata address', function () {
+    expect(UrlGuard::check('http://[::ffff:169.254.169.254]'))->not->toBeNull();
+});

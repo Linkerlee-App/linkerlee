@@ -225,3 +225,17 @@ test('a body that never finishes reading within the configured timeout fails as 
         ->and($result->transient)->toBeTrue()
         ->and($result->error)->toContain('deadline');
 });
+
+test('the request is forced onto ipv4, so it connects to the same addresses UrlGuard checked', function () {
+    $sentOptions = null;
+
+    Http::fake(function ($request, array $options) use (&$sentOptions) {
+        $sentOptions = $options;
+
+        return Http::response(scrapingFixtureBody('article.html'), 200, ['Content-Type' => 'text/html']);
+    });
+
+    (new HttpReadabilityExtractor)->extract('https://example.com/article');
+
+    expect($sentOptions)->toHaveKey('force_ip_resolve', 'v4');
+});
