@@ -36,7 +36,8 @@ Roadmap in [README.md](README.md) for what is merely intended.
   `CheckLinkHealthJob` for links whose `next_check_at` is due, re-extracting content
   and marking a page Gone only after `link_health.failure_threshold` consecutive
   failures — a health check never deletes a link or its snapshots
-- Content enrichment: each new snapshot is summarized (Claude Haiku by default) and
+- Content enrichment: each new snapshot is optionally summarized (off by default,
+  `SUMMARY_DRIVER=none`; `anthropic` sends page text to Claude Haiku) and
   split into `content_chunks` with pgvector embeddings (local Ollama, `nomic-embed-text`,
   768 dimensions by default), all rebuildable from stored `content_text` with no
   refetch via `linkerlee:resummarize`, `linkerlee:rechunk` and `linkerlee:reembed`

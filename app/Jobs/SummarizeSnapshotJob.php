@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Enrichment\EnrichmentProviderException;
+use App\Enrichment\Providers\NullSummaryProvider;
 use App\Enrichment\SummaryManager;
 use App\Models\LinkSnapshot;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -49,7 +50,10 @@ class SummarizeSnapshotJob implements ShouldQueue
     }
 
     /**
-     * Skipped when the snapshot is no longer its live link's latest.
+     * Skipped when the snapshot is no longer its live link's latest, and
+     * when summaries are off (the `none` driver). An empty summary from the
+     * provider is treated the same way: `summary` and `summary_model` are
+     * left untouched.
      */
     public function handle(SummaryManager $summaries): void
     {
@@ -59,11 +63,19 @@ class SummarizeSnapshotJob implements ShouldQueue
 
         $provider = $summaries->provider($this->model);
 
+        if ($provider instanceof NullSummaryProvider) {
+            return;
+        }
+
         if (! $this->force && $this->snapshot->summary !== null && $this->snapshot->summary_model === $provider->model()) {
             return;
         }
 
-        $summary = $provider->summarize($this->snapshot->title ?? '', (string) $this->snapshot->content_text);
+        $summary = trim($provider->summarize($this->snapshot->title ?? '', (string) $this->snapshot->content_text));
+
+        if ($summary === '') {
+            return;
+        }
 
         $this->snapshot->update([
             'summary' => $summary,

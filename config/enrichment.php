@@ -3,6 +3,7 @@
 use App\Enrichment\Providers\AnthropicSummaryProvider;
 use App\Enrichment\Providers\FakeEmbeddingProvider;
 use App\Enrichment\Providers\FakeSummaryProvider;
+use App\Enrichment\Providers\NullSummaryProvider;
 use App\Enrichment\Providers\OllamaEmbeddingProvider;
 
 return [
@@ -12,16 +13,20 @@ return [
     | Summaries
     |--------------------------------------------------------------------------
     |
-    | Produces the 2-3 sentence summary stored on a link_snapshot. "fake" is
-    | forced in tests (SUMMARY_DRIVER=fake in phpunit.xml), so no test ever
+    | Produces the 2-3 sentence summary stored on a link_snapshot. The
+    | default, "none", turns summaries off so page text never leaves the
+    | server; chunk 0 is then the title alone. "anthropic" sends page text to
+    | Anthropic, so the privacy page must say so before it is enabled. "fake"
+    | is forced in tests (SUMMARY_DRIVER=fake in phpunit.xml), so no test ever
     | calls the Anthropic API.
     |
     */
 
     'summary' => [
-        'driver' => env('SUMMARY_DRIVER', 'anthropic'),
+        'driver' => env('SUMMARY_DRIVER', 'none'),
 
         'drivers' => [
+            'none' => NullSummaryProvider::class,
             'anthropic' => AnthropicSummaryProvider::class,
             'fake' => FakeSummaryProvider::class,
         ],

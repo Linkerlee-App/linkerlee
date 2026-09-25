@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enrichment\Providers\NullSummaryProvider;
 use App\Enrichment\SummaryManager;
 use App\Jobs\ChunkSnapshotJob;
 use App\Jobs\EmbedChunksJob;
@@ -47,7 +48,15 @@ class ResummarizeCommand extends Command
     public function handle(SummaryManager $summaries): int
     {
         $model = $this->option('model');
-        $target = $summaries->provider($model)->model();
+        $provider = $summaries->provider($model);
+
+        if ($provider instanceof NullSummaryProvider) {
+            $this->info('Summaries are disabled (SUMMARY_DRIVER=none). Dispatching nothing.');
+
+            return Command::SUCCESS;
+        }
+
+        $target = $provider->model();
         $includeAll = (bool) $this->option('all');
         $sync = (bool) $this->option('sync');
 

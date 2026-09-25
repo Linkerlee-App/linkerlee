@@ -297,7 +297,11 @@ The scheduler must also run — `php artisan schedule:work`, or a cron entry cal
 ### Content enrichment
 
 Each newly extracted snapshot is summarized, split into chunks and embedded, so this needs
-its own one-time step after the first deploy:
+its own one-time step after the first deploy.
+
+Summaries are **off by default** (`SUMMARY_DRIVER=none`), so page text never leaves your
+server; setting `SUMMARY_DRIVER=anthropic` sends each page's text to Anthropic, so update the
+privacy page before enabling it.
 
 ```bash
 # On the Ollama host:
