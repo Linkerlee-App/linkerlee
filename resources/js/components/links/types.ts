@@ -73,6 +73,21 @@ export const EXTRACTION_STATUSES = [
 
 export type ExtractionStatus = (typeof EXTRACTION_STATUSES)[number];
 
+/**
+ * The result of the most recent health check against a link's URL.
+ *
+ * Mirrors App\Enums\HealthStatus. Null means the link has never been checked.
+ */
+export const HEALTH_STATUSES = [
+    'ok',
+    'redirected',
+    'suspect',
+    'gone',
+    'error',
+] as const;
+
+export type HealthStatus = (typeof HEALTH_STATUSES)[number];
+
 export interface LinkItem {
     id: number;
     title: string | null;
@@ -87,6 +102,10 @@ export interface LinkItem {
     extraction_status: ExtractionStatus | null;
     extraction_error: string | null;
     extracted_at: string | null;
+    health_status: HealthStatus | null;
+    redirect_url: string | null;
+    last_checked_at: string | null;
+    content_changed_at: string | null;
     tags: TagOption[];
     tag_ids: number[];
     linkGroups: GroupOption[];

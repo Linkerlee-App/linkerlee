@@ -220,6 +220,34 @@ class Link extends Model implements Searchable
     }
 
     /**
+     * Null when the link has never been health-checked.
+     */
+    public function getLastCheckedAtForHumansAttribute(bool $withTime = false): ?string
+    {
+        if ($this->last_checked_at === null) {
+            return null;
+        }
+
+        return $withTime
+            ? $this->last_checked_at->format('d.m.Y H:i:s')
+            : $this->last_checked_at->format('d.m.Y');
+    }
+
+    /**
+     * Null when the health check has never found the page's text changed.
+     */
+    public function getContentChangedAtForHumansAttribute(bool $withTime = false): ?string
+    {
+        if ($this->content_changed_at === null) {
+            return null;
+        }
+
+        return $withTime
+            ? $this->content_changed_at->format('d.m.Y H:i:s')
+            : $this->content_changed_at->format('d.m.Y');
+    }
+
+    /**
      * Several tag names narrow the listing instead of widening it: a link has
      * to carry every one of them. Picking a second tag is how the user asks
      * for "both of these", and an OR there only ever buried the first pick.
