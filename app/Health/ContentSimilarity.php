@@ -23,18 +23,20 @@ class ContentSimilarity
         $shinglesA = $this->shingles($a, $k);
         $shinglesB = $this->shingles($b, $k);
 
-        $union = array_unique(array_merge($shinglesA, $shinglesB));
-        $intersection = array_intersect($shinglesA, $shinglesB);
+        $shared = count(array_intersect_key(array_flip($shinglesA), array_flip($shinglesB)));
 
-        return count($intersection) / count($union);
+        return $shared / (count($shinglesA) + count($shinglesB) - $shared);
     }
 
     /**
+     * The text's distinct k-word shingles, case-folded (multibyte-aware) and
+     * whitespace-normalized. Text shorter than k words is one shingle.
+     *
      * @return list<string>
      */
     private function shingles(string $text, int $k): array
     {
-        $normalized = ExtractionResult::normalize(strtolower($text));
+        $normalized = ExtractionResult::normalize(mb_strtolower($text));
         $words = preg_split('/\s+/u', trim($normalized), -1, PREG_SPLIT_NO_EMPTY) ?: [];
 
         if (count($words) < $k) {

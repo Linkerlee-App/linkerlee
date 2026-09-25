@@ -19,8 +19,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | A link's first check is scheduled this many days out. After that, the
-    | interval grows on a clean check and shrinks on a failure, bounded by
-    | "max_interval_days".
+    | interval doubles on an unchanged check (up to "max_interval_days") and
+    | resets to "initial_interval_days" when the content changed. A failed
+    | check keeps the interval as it is and retries after "error_retry_days".
     |
     */
 
@@ -93,9 +94,10 @@ return [
     | Soft-404 detection
     |--------------------------------------------------------------------------
     |
-    | A page that still answers with 200 but reads like a "not found" page:
-    | enough of its words dropped since the last snapshot, together with one
-    | of these phrases appearing, marks it Gone instead of Ok.
+    | A page that still answers with 200 but reads like a "not found" page
+    | is marked Suspect instead of Ok (never Gone) when EITHER its title, or
+    | the body of a short page, matches one of these phrases, OR its word
+    | count dropped by at least "soft_404_word_drop" since the last snapshot.
     |
     */
 

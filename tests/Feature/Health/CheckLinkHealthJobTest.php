@@ -33,6 +33,7 @@ beforeEach(function () {
     $this->link = Link::factory()->create([
         'user_id' => User::factory(),
         'link' => 'https://example.com/article',
+        'extraction_status' => ExtractionStatus::Failed,
     ]);
 });
 
@@ -531,21 +532,21 @@ test('a url edited mid-check writes only last_checked_at and leaves the schedule
     Queue::assertPushed(ExtractContentJob::class);
 });
 
-test('a 403 probe is unknown: status and failures are untouched and the interval still grows', function () {
-    $link = givenSnapshot($this->link, healthArticle('guarded'), ['consecutive_failures' => 1]);
+test('a 403 probe on a clean streak is unknown: status and failures are untouched and the interval still grows', function () {
+    $link = givenSnapshot($this->link, healthArticle('guarded'));
     Http::fake(['https://example.com/article' => Http::response('', 403)]);
 
     runHealthCheck($link);
     $link->refresh();
 
     expect($link->health_status)->toBe(HealthStatus::Ok)
-        ->and($link->consecutive_failures)->toBe(1)
+        ->and($link->consecutive_failures)->toBe(0)
         ->and($link->check_interval_days)->toBe(14)
         ->and($link->last_checked_at->equalTo(now()))->toBeTrue()
         ->and(FakeExtractor::$calls)->toBe([]);
 });
 
-test('a blocked extraction after a 200 is unknown: status and failures are untouched', function () {
+test('a blocked extraction after a 200 mid-streak is unknown: status and failures are untouched and it retries in a day', function () {
     $link = givenSnapshot($this->link, healthArticle('bot-wall'), ['consecutive_failures' => 2]);
     Http::fake(['https://example.com/article' => Http::response('', 200)]);
     FakeExtractor::respondWith('https://example.com/article', ExtractionResult::failure(ExtractionStatus::Blocked, 'fake', 'Blocked with HTTP 403'));
@@ -555,7 +556,8 @@ test('a blocked extraction after a 200 is unknown: status and failures are untou
 
     expect($link->health_status)->toBe(HealthStatus::Ok)
         ->and($link->consecutive_failures)->toBe(2)
-        ->and($link->check_interval_days)->toBe(14)
+        ->and($link->check_interval_days)->toBe(7)
+        ->and($link->next_check_at->equalTo(now()->addDay()))->toBeTrue()
         ->and($link->last_checked_at->equalTo(now()))->toBeTrue()
         ->and(LinkSnapshot::query()->count())->toBe(1);
 });
@@ -626,4 +628,95 @@ test('a malformed Location header is an error, not a crash', function () {
 
     expect($this->link->fresh()->consecutive_failures)->toBe(1)
         ->and(FakeExtractor::$calls)->toBe([]);
+});
+
+test('404, 404 then 429 keeps the failure streak and retries in a day instead of backing off', function () {
+    $link = givenSnapshot($this->link, healthArticle('throttled'));
+    Http::fake([
+        'https://example.com/article' => Http::sequence()
+            ->push('', 404)
+            ->push('', 404)
+            ->push('', 429),
+    ]);
+
+    runHealthCheck($link);
+    runHealthCheck($link->fresh());
+    runHealthCheck($link->fresh());
+    $link->refresh();
+
+    expect($link->health_status)->toBe(HealthStatus::Ok)
+        ->and($link->consecutive_failures)->toBe(2)
+        ->and($link->check_interval_days)->toBe(7)
+        ->and($link->next_check_at->equalTo(now()->addDay()))->toBeTrue()
+        ->and($link->last_checked_at->equalTo(now()))->toBeTrue();
+});
+
+test('a link whose extraction is pending is not checked and nothing is written', function () {
+    $link = givenSnapshot($this->link, healthArticle('in-flight'), ['consecutive_failures' => 1]);
+    $link->forceFill(['extraction_status' => ExtractionStatus::Pending])->save();
+    $scheduledFor = $link->next_check_at;
+    Http::fake();
+
+    runHealthCheck($link);
+    $link->refresh();
+
+    Http::assertNothingSent();
+
+    expect(FakeExtractor::$calls)->toBe([])
+        ->and($link->last_checked_at)->toBeNull()
+        ->and($link->consecutive_failures)->toBe(1)
+        ->and($link->health_status)->toBe(HealthStatus::Ok)
+        ->and($link->next_check_at->equalTo($scheduledFor))->toBeTrue();
+});
+
+describe('failed()', function () {
+    test('an unexpected failure counts one more failure, keeps the status and retries after error_retry_days', function () {
+        $link = givenSnapshot($this->link, healthArticle('timeout'), ['consecutive_failures' => 1]);
+
+        (new CheckLinkHealthJob($link))->failed(new RuntimeException('Job timed out'));
+        $link->refresh();
+
+        expect($link->health_status)->toBe(HealthStatus::Ok)
+            ->and($link->consecutive_failures)->toBe(2)
+            ->and($link->check_interval_days)->toBe(7)
+            ->and($link->last_checked_at->equalTo(now()))->toBeTrue()
+            ->and($link->next_check_at->equalTo(now()->addDay()))->toBeTrue();
+    });
+
+    test('an unexpected failure that reaches the threshold marks the link error', function () {
+        $link = givenSnapshot($this->link, healthArticle('timeout'), ['consecutive_failures' => 2]);
+
+        (new CheckLinkHealthJob($link))->failed(new RuntimeException('Job timed out'));
+
+        expect($link->fresh()->health_status)->toBe(HealthStatus::Error)
+            ->and($link->fresh()->consecutive_failures)->toBe(3);
+    });
+
+    test('the failure count is capped at 255', function () {
+        $link = givenSnapshot($this->link, healthArticle('timeout'), ['consecutive_failures' => 255, 'health_status' => HealthStatus::Error]);
+
+        (new CheckLinkHealthJob($link))->failed(new RuntimeException('Job timed out'));
+
+        expect($link->fresh()->consecutive_failures)->toBe(255);
+    });
+
+    test('a link whose url was edited before the failure is handled is left alone', function () {
+        $link = givenSnapshot($this->link, healthArticle('timeout'), ['consecutive_failures' => 1]);
+        $job = new CheckLinkHealthJob($link);
+        $link->forceFill(['extraction_status' => ExtractionStatus::Pending])->save();
+
+        $job->failed(new RuntimeException('Job timed out'));
+
+        expect($link->fresh()->consecutive_failures)->toBe(1)
+            ->and($link->fresh()->last_checked_at)->toBeNull();
+    });
+
+    test('a link deleted before the failure is handled is a quiet no-op', function () {
+        $job = new CheckLinkHealthJob($this->link);
+        $this->link->forceDelete();
+
+        $job->failed(new RuntimeException('Job timed out'));
+
+        expect(Link::withTrashed()->find($this->link->id))->toBeNull();
+    });
 });

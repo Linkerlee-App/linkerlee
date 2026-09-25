@@ -64,3 +64,8 @@ test('the shingle size defaults to config(link_health.shingle_size)', function (
     expect($this->similarity->jaccard('a b c', 'a b d'))->toBe(0.0)
         ->and($this->similarity->jaccard('a b c', 'a b d', k: 2))->toBeGreaterThan(0.0);
 });
+
+test('case is folded for non-ASCII letters too', function () {
+    expect($this->similarity->jaccard('ÄBC', 'äbc'))->toBe(1.0)
+        ->and($this->similarity->jaccard('ÉCOLE ÜBER STRAßE', 'école über straße'))->toBe(1.0);
+});

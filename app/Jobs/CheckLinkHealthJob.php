@@ -20,6 +20,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Throwable;
 
 /**
  * Checks that a link's page is still there and whether its content changed,
@@ -33,7 +34,8 @@ use Illuminate\Support\Facades\Http;
  * checks in a row; until then its status is left as it was. Snapshots are
  * never deleted here, whatever the page does.
  *
- * Not retried: the next scheduled check is the retry.
+ * Not retried: the next scheduled check is the retry. A run that dies
+ * without an outcome still counts as a failure, via {@see self::failed()}.
  */
 class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
@@ -97,7 +99,11 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
 
     /**
      * Probes the URL and writes the outcome, the failure count and the next
-     * check in one save at the end. A trashed link is skipped.
+     * check in one save at the end. A trashed link is skipped, and so is one
+     * whose extraction is pending (its URL was just edited, or extraction is
+     * in flight): nothing is written, so the schedule stands as the URL edit
+     * or the dispatching command left it, and the old page's snapshot is
+     * never compared against the new page.
      *
      * The extraction runs on the probe's final URL, but is recorded against
      * the URL the check started from, so a redirected link is not mistaken
@@ -110,13 +116,14 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
      * extraction.
      *
      * A bot wall (401/403/429 at the probe, or a Blocked extraction) is
-     * "unknown": the status and failure count stand and the interval grows.
+     * "unknown": the status and failure count stand. On a clean streak the
+     * interval grows; mid-streak the link is retried like a failure.
      * An Unsupported extraction (a PDF, an image) is a live page with no text
      * to snapshot. Only a Failed extraction counts as a failure.
      */
     public function handle(ScrapingManager $scraping, SnapshotRecorder $recorder, HealthClassifier $classifier, CheckSchedule $schedule): void
     {
-        if ($this->link->trashed()) {
+        if ($this->link->trashed() || $this->link->extraction_status === ExtractionStatus::Pending) {
             return;
         }
 
@@ -197,6 +204,27 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
             0,
             ['redirect_url' => $redirectUrl],
         );
+    }
+
+    /**
+     * Counts a check that died without an outcome (a timeout, an unexpected
+     * exception) as one more failure, exactly as {@see self::finishFailure()}
+     * does for an error. Without it the link would keep the command's bump
+     * and be retried every hour. A link deleted or trashed meanwhile is left
+     * alone, and so is one whose extraction went pending (its URL was edited):
+     * the failure belongs to the old page.
+     */
+    public function failed(Throwable $exception): void
+    {
+        $link = Link::query()->find($this->link->getKey());
+
+        if ($link === null || $link->extraction_status === ExtractionStatus::Pending) {
+            return;
+        }
+
+        $this->link = $link;
+
+        $this->finishFailure(app(CheckSchedule::class), HealthStatus::Error);
     }
 
     /**
@@ -332,12 +360,21 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
 
     /**
      * Records a check that learned nothing about the page (the site blocked
-     * the bot): the status and failure count stand, and the interval grows
-     * as for an unchanged page.
+     * the bot): the status and failure count stand. On a clean streak the
+     * interval grows as for an unchanged page; mid-streak the link is
+     * retried after `link_health.error_retry_days`, as after a failure, so a
+     * rate limit does not push a failing page's next check far out.
      */
     private function finishUnknown(CheckSchedule $schedule): void
     {
-        $this->finish($schedule, CheckOutcome::Unchanged, $this->link->health_status, (int) $this->link->consecutive_failures);
+        $failures = (int) $this->link->consecutive_failures;
+
+        $this->finish(
+            $schedule,
+            $failures > 0 ? CheckOutcome::Failure : CheckOutcome::Unchanged,
+            $this->link->health_status,
+            $failures,
+        );
     }
 
     /**

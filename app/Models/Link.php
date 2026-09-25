@@ -234,7 +234,9 @@ class Link extends Model implements Searchable
     }
 
     /**
-     * Null when the health check has never found the page's text changed.
+     * When the latest snapshot's text last changed: stamped whenever a new
+     * snapshot replaces an earlier one, whether a health check, an extraction
+     * retry or a URL edit produced it. Null until that first happens.
      */
     public function getContentChangedAtForHumansAttribute(bool $withTime = false): ?string
     {
