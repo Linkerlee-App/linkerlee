@@ -3,11 +3,14 @@
 namespace App\Models;
 
 use App\Concerns\HasCurrentUserScope;
+use App\Enums\ExtractionStatus;
 use App\Enums\LinkSource;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
@@ -70,11 +73,14 @@ class Link extends Model implements Searchable
 
     /**
      * `search_vector` is a database-generated index column, not link data.
+     * `extraction_error` is raw diagnostic text from a fetch and is not meant
+     * for clients.
      *
      * @var list<string>
      */
     protected $hidden = [
         'search_vector',
+        'extraction_error',
     ];
 
     /**
@@ -97,6 +103,8 @@ class Link extends Model implements Searchable
             'read_at' => 'datetime',
             'metadata_fetched_at' => 'datetime',
             'source' => LinkSource::class,
+            'extraction_status' => ExtractionStatus::class,
+            'extracted_at' => 'datetime',
         ];
     }
 
@@ -152,6 +160,22 @@ class Link extends Model implements Searchable
     public function groups(): MorphToMany
     {
         return $this->morphToMany(Group::class, 'groupable');
+    }
+
+    /**
+     * Every stored version of the link's extracted article text.
+     */
+    public function snapshots(): HasMany
+    {
+        return $this->hasMany(LinkSnapshot::class);
+    }
+
+    /**
+     * The snapshot holding the link's current article text.
+     */
+    public function latestSnapshot(): BelongsTo
+    {
+        return $this->belongsTo(LinkSnapshot::class, 'latest_snapshot_id');
     }
 
     /**
