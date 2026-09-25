@@ -41,7 +41,8 @@ services:
       start_period: 90s
 
   # The queue worker. Without it, saved links are never enriched with their
-  # title, description, favicon or preview image. Do not remove it.
+  # title, description, favicon or preview image, and their content is
+  # never extracted into a snapshot. Do not remove it.
   queue:
     build:
       context: .
@@ -49,7 +50,7 @@ services:
     image: linkerlee/app:latest
     restart: unless-stopped
     env_file: .env
-    command: ["php", "artisan", "queue:work", "--tries=3", "--timeout=90", "--max-time=3600"]
+    command: ["php", "artisan", "queue:work", "--queue=default,ingestion,enrichment,health", "--tries=3", "--timeout=90", "--max-time=3600"]
     volumes:
       - storage:/var/www/html/storage
     depends_on:
