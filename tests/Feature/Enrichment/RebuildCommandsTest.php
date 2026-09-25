@@ -1,5 +1,9 @@
 <?php
 
+use App\Enrichment\Chunker;
+use App\Enrichment\Contracts\EmbeddingProvider;
+use App\Enrichment\Contracts\SummaryProvider;
+use App\Enrichment\EnrichmentProviderException;
 use App\Enrichment\Providers\FakeEmbeddingProvider;
 use App\Enrichment\Providers\FakeSummaryProvider;
 use App\Jobs\ChunkSnapshotJob;
@@ -14,6 +18,7 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 
 beforeEach(function () {
     Http::preventStrayRequests();
@@ -196,7 +201,7 @@ test('resummarize --sync summarizes inline', function () {
 
     $this->artisan('linkerlee:resummarize', ['--sync' => true])
         ->assertSuccessful()
-        ->expectsOutputToContain('Resummarized 1 snapshot.');
+        ->expectsOutputToContain('Resummarized 1 snapshot (1 ok, 0 failed).');
 
     expect($snapshot->fresh()->summary)->not->toBeNull()
         ->and(FakeSummaryProvider::$calls)->toHaveCount(1);
@@ -213,7 +218,7 @@ test('resummarize is idempotent: a second sync run dispatches nothing and calls 
 
     $this->artisan('linkerlee:resummarize', ['--sync' => true])
         ->assertSuccessful()
-        ->expectsOutputToContain('Resummarized 0 snapshots.');
+        ->expectsOutputToContain('Resummarized 0 snapshots (0 ok, 0 failed).');
 
     expect(FakeSummaryProvider::$calls)->toBe([]);
 });
@@ -263,7 +268,7 @@ test('rechunk --sync rebuilds chunks and embeddings inline', function () {
 
     $this->artisan('linkerlee:rechunk', ['--sync' => true])
         ->assertSuccessful()
-        ->expectsOutputToContain('Rechunked 1 snapshot.');
+        ->expectsOutputToContain('Rechunked 1 snapshot (1 ok, 0 failed).');
 
     $chunks = ContentChunk::query()->where('link_snapshot_id', $snapshot->id)->get();
 
@@ -336,7 +341,7 @@ test('reembed --sync embeds inline and --model sets embedding_model on every re-
 
     $this->artisan('linkerlee:reembed', ['--model' => 'other-embedding', '--sync' => true])
         ->assertSuccessful()
-        ->expectsOutputToContain('Embedded 1 snapshot.');
+        ->expectsOutputToContain('Embedded 1 snapshot (1 ok, 0 failed).');
 
     expect($chunk->fresh()->embedding_model)->toBe('other-embedding');
 });
@@ -352,7 +357,7 @@ test('reembed is idempotent: a second sync run dispatches nothing and calls the 
 
     $this->artisan('linkerlee:reembed', ['--sync' => true])
         ->assertSuccessful()
-        ->expectsOutputToContain('Embedded 0 snapshots.');
+        ->expectsOutputToContain('Embedded 0 snapshots (0 ok, 0 failed).');
 
     expect(FakeEmbeddingProvider::$calls)->toBe([]);
 });
@@ -369,6 +374,178 @@ test('reembed refuses and prints a migration when the column dimension does not 
         ->expectsOutputToContain('vector(1024)');
 
     Queue::assertNothingPushed();
+});
+
+/**
+ * Binds the fake embedding driver to a provider that reports the configured
+ * dimensions but whose model really produces vectors of `$actualDimensions`,
+ * optionally throwing from the probe or from embedding itself.
+ */
+function bindEmbeddingProvider(int $actualDimensions, ?Throwable $probeFailure = null, ?Throwable $embedFailure = null): void
+{
+    app()->bind(FakeEmbeddingProvider::class, fn (): EmbeddingProvider => new class($actualDimensions, $probeFailure, $embedFailure) implements EmbeddingProvider
+    {
+        public function __construct(private int $actual, private ?Throwable $probeFailure, private ?Throwable $embedFailure) {}
+
+        public function embed(array $texts): array
+        {
+            if ($this->embedFailure !== null) {
+                throw $this->embedFailure;
+            }
+
+            return array_map(fn (): array => array_fill(0, $this->actual, 0.1), $texts);
+        }
+
+        public function probeDimensions(): int
+        {
+            if ($this->probeFailure !== null) {
+                throw $this->probeFailure;
+            }
+
+            return $this->actual;
+        }
+
+        public function model(): string
+        {
+            return 'fake-embedding';
+        }
+
+        public function dimensions(): int
+        {
+            return 768;
+        }
+
+        public function withModel(string $model): static
+        {
+            return $this;
+        }
+    });
+}
+
+test('reembed refuses when the model really produces another size, even though the config says 768', function () {
+    Queue::fake();
+    bindEmbeddingProvider(1024);
+
+    $snapshot = makeCurrentSnapshot();
+    makeChunkFor($snapshot);
+
+    $this->artisan('linkerlee:reembed')
+        ->assertExitCode(1)
+        ->expectsOutputToContain('the target model produces vector(1024)');
+
+    Queue::assertNothingPushed();
+});
+
+test('reembed exits 1 with a clear error when the dimension probe fails', function () {
+    Queue::fake();
+    bindEmbeddingProvider(768, probeFailure: new EnrichmentProviderException('Ollama is down'));
+
+    $snapshot = makeCurrentSnapshot();
+    makeChunkFor($snapshot);
+
+    $this->artisan('linkerlee:reembed')
+        ->assertExitCode(1)
+        ->expectsOutputToContain('Could not probe the embedding model fake-embedding: Ollama is down');
+
+    Queue::assertNothingPushed();
+});
+
+test('reembed reports a missing content_chunks table instead of a raw exception', function () {
+    Queue::fake();
+    Schema::drop('content_chunks');
+
+    makeCurrentSnapshot();
+
+    $this->artisan('linkerlee:reembed')
+        ->assertExitCode(1)
+        ->expectsOutputToContain('has the content_chunks migration run?');
+
+    Queue::assertNothingPushed();
+});
+
+test('resummarize --sync counts a failing snapshot and carries on with the rest', function () {
+    $failing = makeCurrentSnapshot(['title' => 'Explodes']);
+    makeChunkFor($failing);
+    $working = makeCurrentSnapshot(['title' => 'Works']);
+    makeChunkFor($working);
+
+    app()->bind(FakeSummaryProvider::class, fn (): SummaryProvider => new class implements SummaryProvider
+    {
+        public function summarize(string $title, string $text): string
+        {
+            if ($title === 'Explodes') {
+                throw new EnrichmentProviderException('Anthropic is down');
+            }
+
+            return "Summary of {$title}";
+        }
+
+        public function model(): string
+        {
+            return 'fake-summary';
+        }
+    });
+
+    $this->artisan('linkerlee:resummarize', ['--sync' => true])
+        ->assertSuccessful()
+        ->expectsOutputToContain('Resummarized 2 snapshots (1 ok, 1 failed).');
+
+    expect($working->fresh()->summary)->toBe('Summary of Works')
+        ->and($failing->fresh()->summary)->toBeNull();
+});
+
+test('resummarize --sync still chunks and embeds a chunkless snapshot whose summary fails, and counts it failed', function () {
+    $snapshot = makeCurrentSnapshot(['title' => 'Explodes', 'content_text' => 'Body.']);
+
+    app()->bind(FakeSummaryProvider::class, fn (): SummaryProvider => new class implements SummaryProvider
+    {
+        public function summarize(string $title, string $text): string
+        {
+            throw new EnrichmentProviderException('Anthropic is down');
+        }
+
+        public function model(): string
+        {
+            return 'fake-summary';
+        }
+    });
+
+    $this->artisan('linkerlee:resummarize', ['--sync' => true])
+        ->assertSuccessful()
+        ->expectsOutputToContain('Resummarized 1 snapshot (0 ok, 1 failed).');
+
+    expect(ContentChunk::query()->where('link_snapshot_id', $snapshot->id)->whereNotNull('embedding')->count())->toBe(2);
+});
+
+test('rechunk --sync counts a failing snapshot and carries on with the rest', function () {
+    makeCurrentSnapshot();
+    makeCurrentSnapshot();
+
+    $calls = 0;
+    app()->bind(Chunker::class, function () use (&$calls): Chunker {
+        if (++$calls === 1) {
+            throw new RuntimeException('Chunker blew up');
+        }
+
+        return new Chunker;
+    });
+
+    $this->artisan('linkerlee:rechunk', ['--sync' => true])
+        ->assertSuccessful()
+        ->expectsOutputToContain('Rechunked 2 snapshots (1 ok, 1 failed).');
+
+    expect(ContentChunk::query()->distinct()->count('link_snapshot_id'))->toBe(1);
+});
+
+test('reembed --sync counts a failing snapshot', function () {
+    bindEmbeddingProvider(768, embedFailure: new EnrichmentProviderException('Ollama is down'));
+
+    $snapshot = makeCurrentSnapshot();
+    makeChunkFor($snapshot);
+
+    $this->artisan('linkerlee:reembed', ['--sync' => true])
+        ->assertSuccessful()
+        ->expectsOutputToContain('Embedded 1 snapshot (0 ok, 1 failed).');
 });
 
 test('reembed guards a missing embedding column with a clear error instead of a raw exception', function () {

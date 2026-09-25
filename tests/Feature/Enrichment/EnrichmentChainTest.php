@@ -506,3 +506,29 @@ test('the chunk swap replaces every chunk of the link, from any snapshot, in one
 
     expect(ContentChunk::query()->where('link_id', $this->link->id)->pluck('link_snapshot_id')->unique()->all())->toBe([$new->id]);
 });
+
+test('a summary from another snapshot with the same content and model is reused without a provider call', function () {
+    $otherLink = Link::factory()->create(['user_id' => User::factory()]);
+    LinkSnapshot::factory()->create(['link_id' => $otherLink->id, 'content_hash' => str_repeat('a', 64), 'summary' => 'Shared summary', 'summary_model' => 'fake-summary']);
+    LinkSnapshot::factory()->create(['link_id' => $otherLink->id, 'content_hash' => str_repeat('a', 64), 'summary' => 'Other model summary', 'summary_model' => 'another-model']);
+
+    $snapshot = latestSnapshotFor($this->link, ['content_hash' => str_repeat('a', 64), 'summary' => null, 'summary_model' => null]);
+
+    SummarizeSnapshotJob::dispatchSync($snapshot);
+
+    expect(FakeSummaryProvider::$calls)->toBe([])
+        ->and($snapshot->fresh()->summary)->toBe('Shared summary')
+        ->and($snapshot->fresh()->summary_model)->toBe('fake-summary');
+});
+
+test('a forced summary is never reused from another snapshot', function () {
+    $otherLink = Link::factory()->create(['user_id' => User::factory()]);
+    LinkSnapshot::factory()->create(['link_id' => $otherLink->id, 'content_hash' => str_repeat('b', 64), 'summary' => 'Shared summary', 'summary_model' => 'fake-summary']);
+
+    $snapshot = latestSnapshotFor($this->link, ['content_hash' => str_repeat('b', 64), 'summary' => 'Stale', 'summary_model' => 'fake-summary']);
+
+    SummarizeSnapshotJob::dispatchSync($snapshot, force: true);
+
+    expect(FakeSummaryProvider::$calls)->toHaveCount(1)
+        ->and($snapshot->fresh()->summary)->toBe("Summary of {$snapshot->title}");
+});

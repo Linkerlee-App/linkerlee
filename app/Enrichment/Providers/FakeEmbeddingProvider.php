@@ -50,6 +50,14 @@ final class FakeEmbeddingProvider implements EmbeddingProvider
         return (int) config('enrichment.embedding.ollama.dimensions', 768);
     }
 
+    /**
+     * Not recorded in {@see self::$calls}, which only lists chunk embedding.
+     */
+    public function probeDimensions(): int
+    {
+        return count($this->vectorFor('dimension probe'));
+    }
+
     public function withModel(string $model): static
     {
         return new self($model);

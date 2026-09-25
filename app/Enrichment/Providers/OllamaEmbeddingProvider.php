@@ -45,6 +45,31 @@ final class OllamaEmbeddingProvider implements EmbeddingProvider
             return [];
         }
 
+        $dimensions = $this->dimensions();
+
+        return array_map(function (array $vector) use ($dimensions): array {
+            if (count($vector) !== $dimensions) {
+                throw new EnrichmentProviderException('Ollama embedding response contained a vector of length '.count($vector).", expected {$dimensions}.");
+            }
+
+            return $vector;
+        }, $this->request($texts));
+    }
+
+    public function probeDimensions(): int
+    {
+        return count($this->request(['dimension probe'])[0]);
+    }
+
+    /**
+     * One vector per text, in input order, of whatever length the model
+     * returns.
+     *
+     * @param  non-empty-list<string>  $texts
+     * @return non-empty-list<list<float>>
+     */
+    private function request(array $texts): array
+    {
         $url = rtrim((string) config('enrichment.embedding.ollama.url'), '/');
 
         try {
@@ -67,20 +92,12 @@ final class OllamaEmbeddingProvider implements EmbeddingProvider
             throw new EnrichmentProviderException('Ollama embedding response did not return one vector per input text.');
         }
 
-        $dimensions = $this->dimensions();
-
-        return array_map(function (mixed $vector) use ($dimensions): array {
+        return array_map(function (mixed $vector): array {
             if (! is_array($vector)) {
                 throw new EnrichmentProviderException('Ollama embedding response contained a malformed vector.');
             }
 
-            $vector = array_values(array_map(static fn (mixed $component): float => (float) $component, $vector));
-
-            if (count($vector) !== $dimensions) {
-                throw new EnrichmentProviderException('Ollama embedding response contained a vector of length '.count($vector).", expected {$dimensions}.");
-            }
-
-            return $vector;
+            return array_values(array_map(static fn (mixed $component): float => (float) $component, $vector));
         }, array_values($embeddings));
     }
 }

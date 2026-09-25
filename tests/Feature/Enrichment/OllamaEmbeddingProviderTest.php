@@ -100,3 +100,22 @@ test('model, dimensions and withModel report the effective configuration', funct
     expect($overridden->model())->toBe('a-different-model')
         ->and($overridden)->not->toBe($provider);
 });
+
+test('probeDimensions reports the length the model really returns, whatever the config says', function () {
+    Http::fake([
+        '127.0.0.1:11434/api/embed' => Http::response(['embeddings' => [[0.1, 0.2, 0.3, 0.4, 0.5, 0.6]]], 200),
+    ]);
+
+    expect((new OllamaEmbeddingProvider)->probeDimensions())->toBe(6);
+
+    Http::assertSent(fn (Request $request): bool => $request->data()['input'] === ['dimension probe']);
+});
+
+test('probeDimensions throws on a failed request', function () {
+    Http::fake([
+        '127.0.0.1:11434/api/embed' => Http::response('model not found', 404),
+    ]);
+
+    expect(fn () => (new OllamaEmbeddingProvider)->probeDimensions())
+        ->toThrow(EnrichmentProviderException::class);
+});

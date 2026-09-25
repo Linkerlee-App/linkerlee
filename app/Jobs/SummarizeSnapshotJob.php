@@ -25,7 +25,9 @@ use Illuminate\Support\Facades\DB;
  *
  * Idempotent: a snapshot already summarized by the model in use is left
  * alone, so only a model change (the `$model` override) or `$force`
- * re-summarizes it.
+ * re-summarizes it. Unless forced, a summary another snapshot already has
+ * for the same `content_hash` and model is copied instead of paying for a
+ * provider call.
  * A provider failure ({@see EnrichmentProviderException}) is left to fail the
  * job, which retries under {@see self::backoff()}; a
  * {@see NonRetryableProviderException} (such as a missing API key) fails it
@@ -97,7 +99,8 @@ class SummarizeSnapshotJob implements ShouldQueue
             return;
         }
 
-        $summary = trim($provider->summarize($this->snapshot->title ?? '', (string) $this->snapshot->content_text));
+        $summary = ($this->force ? null : $this->reusableSummary($provider->model()))
+            ?? trim($provider->summarize($this->snapshot->title ?? '', (string) $this->snapshot->content_text));
 
         if ($summary === '') {
             return;
@@ -108,6 +111,19 @@ class SummarizeSnapshotJob implements ShouldQueue
         if ($rewroteHead) {
             EmbedChunksJob::dispatch($this->snapshot)->onConnection($this->connection);
         }
+    }
+
+    /**
+     * A summary of the same text by the same model, from another snapshot.
+     */
+    private function reusableSummary(string $model): ?string
+    {
+        return LinkSnapshot::query()
+            ->where('content_hash', $this->snapshot->content_hash)
+            ->whereKeyNot($this->snapshot->id)
+            ->where('summary_model', $model)
+            ->whereNotNull('summary')
+            ->value('summary');
     }
 
     /**

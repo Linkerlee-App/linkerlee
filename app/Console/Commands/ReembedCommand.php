@@ -2,25 +2,30 @@
 
 namespace App\Console\Commands;
 
+use App\Concerns\RebuildsSnapshots;
 use App\Enrichment\EmbeddingManager;
 use App\Jobs\EmbedChunksJob;
 use App\Models\LinkSnapshot;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 /**
  * Rebuilds embeddings for current snapshots from their existing chunks,
  * with no refetch and no re-chunking.
  *
  * Refuses to dispatch anything when `content_chunks.embedding`'s stored
- * vector dimension does not match the target model's, since a vector
+ * vector dimension does not match the length of a vector the target model
+ * really returns (probed once up front, not read from config), since a vector
  * column can only ever hold vectors of the size it was created with;
  * printing the migration the operator needs is cheaper than corrupting
  * the column.
  */
 class ReembedCommand extends Command
 {
+    use RebuildsSnapshots;
+
     /**
      * The name and signature of the console command.
      *
@@ -42,12 +47,19 @@ class ReembedCommand extends Command
         $model = $this->option('model');
         $provider = $embeddings->provider($model);
         $target = $provider->model();
-        $dimensions = $provider->dimensions();
 
         $columnDimensions = $this->columnDimensions();
 
         if ($columnDimensions === null) {
             $this->error('content_chunks.embedding column not found — has the content_chunks migration run?');
+
+            return Command::FAILURE;
+        }
+
+        try {
+            $dimensions = $provider->probeDimensions();
+        } catch (Throwable $exception) {
+            $this->error("Could not probe the embedding model {$target}: {$exception->getMessage()} Dispatching nothing.");
 
             return Command::FAILURE;
         }
@@ -59,21 +71,10 @@ class ReembedCommand extends Command
         }
 
         $sync = (bool) $this->option('sync');
-        $dispatched = 0;
 
-        $this->snapshotsNeedingEmbedding($target)->chunkById(200, function ($snapshots) use (&$dispatched, $model, $sync): void {
-            foreach ($snapshots as $snapshot) {
-                $sync
-                    ? EmbedChunksJob::dispatchSync($snapshot, $model)
-                    : EmbedChunksJob::dispatch($snapshot, $model);
-
-                $dispatched++;
-            }
-        });
-
-        $this->info($sync
-            ? sprintf('Embedded %d %s.', $dispatched, $dispatched === 1 ? 'snapshot' : 'snapshots')
-            : sprintf('Dispatched %d %s to the enrichment queue.', $dispatched, $dispatched === 1 ? 'snapshot' : 'snapshots'));
+        $this->rebuildEach($this->snapshotsNeedingEmbedding($target), $sync, 'Embedded', fn (LinkSnapshot $snapshot) => $sync
+            ? EmbedChunksJob::dispatchSync($snapshot, $model)
+            : EmbedChunksJob::dispatch($snapshot, $model));
 
         return Command::SUCCESS;
     }
@@ -81,13 +82,14 @@ class ReembedCommand extends Command
     /**
      * `content_chunks.embedding`'s declared vector dimension, or null when
      * the table or column can't be found (for instance, the content_chunks
-     * migration hasn't run yet). For a pgvector column, `atttypmod` equals
-     * the dimension directly.
+     * migration hasn't run yet): `to_regclass()` yields null for a missing
+     * table where a `::regclass` cast would throw. For a pgvector column,
+     * `atttypmod` equals the dimension directly.
      */
     private function columnDimensions(): ?int
     {
         $row = DB::selectOne(
-            "select atttypmod from pg_attribute where attrelid = 'content_chunks'::regclass and attname = 'embedding'"
+            "select atttypmod from pg_attribute where attrelid = to_regclass('content_chunks') and attname = 'embedding' and not attisdropped"
         );
 
         return $row === null ? null : (int) $row->atttypmod;

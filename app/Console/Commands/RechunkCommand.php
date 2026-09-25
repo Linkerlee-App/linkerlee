@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Concerns\RebuildsSnapshots;
 use App\Jobs\ChunkSnapshotJob;
 use App\Jobs\EmbedChunksJob;
 use App\Models\LinkSnapshot;
@@ -20,6 +21,8 @@ use Illuminate\Support\Facades\Bus;
  */
 class RechunkCommand extends Command
 {
+    use RebuildsSnapshots;
+
     /**
      * The name and signature of the console command.
      *
@@ -39,24 +42,14 @@ class RechunkCommand extends Command
     {
         $sync = (bool) $this->option('sync');
 
-        $dispatched = 0;
+        $this->rebuildEach(LinkSnapshot::query()->current(), $sync, 'Rechunked', function (LinkSnapshot $snapshot) use ($sync): void {
+            $chain = Bus::chain([
+                new ChunkSnapshotJob($snapshot),
+                new EmbedChunksJob($snapshot),
+            ]);
 
-        LinkSnapshot::query()->current()->chunkById(200, function ($snapshots) use (&$dispatched, $sync): void {
-            foreach ($snapshots as $snapshot) {
-                $chain = Bus::chain([
-                    new ChunkSnapshotJob($snapshot),
-                    new EmbedChunksJob($snapshot),
-                ]);
-
-                $sync ? $chain->onConnection('sync')->dispatch() : $chain->onQueue('enrichment')->dispatch();
-
-                $dispatched++;
-            }
+            $sync ? $chain->onConnection('sync')->dispatch() : $chain->onQueue('enrichment')->dispatch();
         });
-
-        $this->info($sync
-            ? sprintf('Rechunked %d %s.', $dispatched, $dispatched === 1 ? 'snapshot' : 'snapshots')
-            : sprintf('Dispatched %d %s to the enrichment queue.', $dispatched, $dispatched === 1 ? 'snapshot' : 'snapshots'));
 
         return Command::SUCCESS;
     }

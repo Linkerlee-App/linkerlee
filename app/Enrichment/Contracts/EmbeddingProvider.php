@@ -28,7 +28,15 @@ interface EmbeddingProvider
     public function model(): string;
 
     /**
-     * The length of every vector this instance produces.
+     * The length of every vector this instance is configured to produce.
      */
     public function dimensions(): int;
+
+    /**
+     * Embeds one short probe text and returns the length of the vector the
+     * model really produces, without checking it against
+     * {@see self::dimensions()}; used by `linkerlee:reembed` to compare a
+     * model against the column before switching to it.
+     */
+    public function probeDimensions(): int;
 }

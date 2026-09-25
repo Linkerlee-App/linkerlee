@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Concerns\RebuildsSnapshots;
 use App\Enrichment\NonRetryableProviderException;
 use App\Enrichment\Providers\AnthropicSummaryProvider;
 use App\Enrichment\Providers\NullSummaryProvider;
@@ -33,6 +34,8 @@ use Illuminate\Support\Facades\Bus;
  */
 class ResummarizeCommand extends Command
 {
+    use RebuildsSnapshots;
+
     /**
      * The name and signature of the console command.
      *
@@ -75,23 +78,13 @@ class ResummarizeCommand extends Command
         $includeAll = (bool) $this->option('all');
         $sync = (bool) $this->option('sync');
 
-        $dispatched = 0;
-
-        LinkSnapshot::query()
+        $query = LinkSnapshot::query()
             ->current()
             ->when(! $includeAll, fn (Builder $query): Builder => $query->where(
                 fn (Builder $query): Builder => $query->whereNull('summary')->orWhere('summary_model', '!=', $target)
-            ))
-            ->chunkById(200, function ($snapshots) use (&$dispatched, $model, $includeAll, $sync): void {
-                foreach ($snapshots as $snapshot) {
-                    $this->resummarizeOne($snapshot, $model, $includeAll, $sync);
-                    $dispatched++;
-                }
-            });
+            ));
 
-        $this->info($sync
-            ? sprintf('Resummarized %d %s.', $dispatched, $dispatched === 1 ? 'snapshot' : 'snapshots')
-            : sprintf('Dispatched %d %s to the enrichment queue.', $dispatched, $dispatched === 1 ? 'snapshot' : 'snapshots'));
+        $this->rebuildEach($query, $sync, 'Resummarized', fn (LinkSnapshot $snapshot) => $this->resummarizeOne($snapshot, $model, $includeAll, $sync));
 
         return Command::SUCCESS;
     }

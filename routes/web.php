@@ -51,7 +51,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/links/{link}/toggle-favorite', [LinkController::class, 'toggleFavorite'])->name('links.toggle-favorite');
     Route::patch('/links/{link}/toggle-read', [LinkController::class, 'toggleRead'])->name('links.toggle-read');
     Route::patch('/links/{link}/rate', [LinkController::class, 'rate'])->name('links.rate');
-    Route::patch('/links/{link}/retry-extraction', [LinkController::class, 'retryExtraction'])->name('links.retry-extraction');
+    Route::patch('/links/{link}/retry-extraction', [LinkController::class, 'retryExtraction'])->name('links.retry-extraction')->middleware('throttle:10,1');
 
     Route::resource('tags', TagController::class)->except([
         'create', 'edit',
