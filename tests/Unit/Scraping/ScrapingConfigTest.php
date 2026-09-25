@@ -1,6 +1,11 @@
 <?php
 
 use App\Scraping\Contracts\ContentExtractor;
+use Illuminate\Support\Facades\Http;
+
+beforeEach(function () {
+    Http::preventStrayRequests();
+});
 
 test('every configured driver class exists and implements ContentExtractor', function () {
     $drivers = config('scraping.drivers');

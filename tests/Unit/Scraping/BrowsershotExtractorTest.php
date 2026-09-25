@@ -1,6 +1,11 @@
 <?php
 
 use App\Scraping\Drivers\BrowsershotExtractor;
+use Illuminate\Support\Facades\Http;
+
+beforeEach(function () {
+    Http::preventStrayRequests();
+});
 
 test('supports is false when neither chrome_path nor node_binary is configured', function () {
     config()->set('scraping.browsershot.chrome_path', null);

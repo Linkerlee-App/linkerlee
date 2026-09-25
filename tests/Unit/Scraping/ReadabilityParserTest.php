@@ -1,6 +1,11 @@
 <?php
 
 use App\Scraping\ReadabilityParser;
+use Illuminate\Support\Facades\Http;
+
+beforeEach(function () {
+    Http::preventStrayRequests();
+});
 
 function scrapingFixture(string $name): string
 {
@@ -45,4 +50,14 @@ test('converts a latin-1 page to valid utf-8 text', function () {
 test('returns null for html with no usable body', function () {
     expect(ReadabilityParser::parse('<html><head><title>Empty</title></head></html>', 'https://example.com/empty'))
         ->toBeNull();
+});
+
+test('a bogus meta charset does not throw and still returns a result', function () {
+    $html = '<html><head><meta charset="x-bogus"><title>Bogus</title></head>'
+        .'<body><article><p>'.str_repeat('word ', 60).'</p></article></body></html>';
+
+    $result = ReadabilityParser::parse($html, 'https://example.com/bogus-charset');
+
+    expect($result)->not->toBeNull()
+        ->and($result['text'])->toContain('word');
 });

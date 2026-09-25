@@ -147,9 +147,25 @@ final class ReadabilityParser
             return $html;
         }
 
+        // mb_convert_encoding() throws a ValueError for an encoding name it
+        // doesn't recognise (PHP 8+), so a bogus <meta charset> must never
+        // reach it: a page's declared charset is attacker-controlled input.
+        if (! self::isKnownEncoding($charset)) {
+            return $html;
+        }
+
         $converted = @mb_convert_encoding($html, 'UTF-8', $charset);
 
         return $converted === false ? $html : $converted;
+    }
+
+    private static function isKnownEncoding(string $charset): bool
+    {
+        static $encodings = null;
+
+        $encodings ??= array_map(strtoupper(...), mb_list_encodings());
+
+        return in_array(strtoupper($charset), $encodings, true);
     }
 
     private static function declaredCharset(string $html): ?string

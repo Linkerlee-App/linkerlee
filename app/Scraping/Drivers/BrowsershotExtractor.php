@@ -53,7 +53,14 @@ final class BrowsershotExtractor implements ContentExtractor
             ]);
         }
 
-        $parsed = ReadabilityParser::parse($html, $url);
+        try {
+            $parsed = ReadabilityParser::parse($html, $url);
+        } catch (Throwable $exception) {
+            // ReadabilityParser wraps a third-party library fed the page's
+            // own (attacker-controlled) HTML; a driver must never throw,
+            // whatever that library does with a malformed page.
+            return ExtractionResult::failure(ExtractionStatus::Failed, self::NAME, $exception->getMessage());
+        }
 
         if ($parsed === null) {
             return ExtractionResult::failure(ExtractionStatus::Failed, self::NAME, 'Unable to extract article content');

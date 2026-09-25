@@ -3,6 +3,11 @@
 use App\Enums\ExtractionStatus;
 use App\Scraping\ExtractionResult;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Http;
+
+beforeEach(function () {
+    Http::preventStrayRequests();
+});
 
 test('ok computes a sha256 hash and a unicode-aware word count from the normalized text', function () {
     $result = ExtractionResult::ok('fake', "  Hello   world  \n\n\n\nCafé  résumé  ");

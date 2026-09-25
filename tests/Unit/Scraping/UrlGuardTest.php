@@ -1,8 +1,11 @@
 <?php
 
 use App\Scraping\UrlGuard;
+use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
+    Http::preventStrayRequests();
+
     // No real DNS lookups in tests: an unset resolver would call gethostbynamel().
     UrlGuard::$resolver = fn (string $host): array|false => ['93.184.216.34'];
 });
@@ -51,9 +54,8 @@ test('rejects an unsupported scheme like ftp', function () {
     expect(UrlGuard::check('ftp://example.com/file'))->not->toBeNull();
 });
 
-test('uses gethostbynamel when no resolver is set', function () {
-    UrlGuard::$resolver = null;
+test('rejects localhost, resolved via a stubbed resolver rather than a real DNS lookup', function () {
+    UrlGuard::$resolver = fn (string $host): array|false => $host === 'localhost' ? ['127.0.0.1'] : false;
 
-    // localhost always resolves to a loopback address via the real resolver.
     expect(UrlGuard::check('http://localhost:5432'))->not->toBeNull();
 });

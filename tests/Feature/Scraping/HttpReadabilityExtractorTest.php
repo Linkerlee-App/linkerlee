@@ -23,6 +23,14 @@ function scrapingFixtureBody(string $name): string
     return file_get_contents(base_path("tests/Fixtures/scraping/{$name}"));
 }
 
+/**
+ * The literal below pins both ReadabilityParser's extraction of
+ * article.html and ExtractionResult::normalize()'s output for it: if
+ * either changes what text comes out, this hash is the thing that catches
+ * it. It is not recomputed from the result, unlike the assertion this
+ * replaced, which just hashed whatever came back and asserted it matched
+ * itself.
+ */
 test('an article page is extracted with a content hash and a word count above 50', function () {
     Http::fake([
         'example.com/*' => Http::response(scrapingFixtureBody('article.html'), 200, [
@@ -39,8 +47,8 @@ test('an article page is extracted with a content hash and a word count above 50
         ->and($result->extractor)->toBe('http_readability')
         ->and($result->title)->toBe('The Quiet Rise of Rooftop Beekeeping')
         ->and($result->author)->toBe('Jordan Ellis')
-        ->and($result->wordCount)->toBeGreaterThan(50)
-        ->and($result->contentHash)->toBe(hash('sha256', $result->contentText))
+        ->and($result->wordCount)->toBe(234)
+        ->and($result->contentHash)->toBe('f34acaa9d166a8e3c12cf4d9da61a9c2d67c5be9395a3e78a90484597f860c98')
         ->and($result->etag)->toBe('"abc123"')
         ->and($result->lastModified)->toBe('Fri, 15 Mar 2024 09:00:00 GMT')
         ->and($result->httpStatus)->toBe(200);
@@ -166,4 +174,54 @@ test('a private host is blocked before any request is made', function () {
 
 test('supports always returns true', function () {
     expect((new HttpReadabilityExtractor)->supports('https://example.com'))->toBeTrue();
+});
+
+test('a redirect to a private host is blocked and the target is never requested', function () {
+    Http::fake([
+        'example.com/*' => Http::response('', 302, [
+            'Location' => 'http://10.0.0.5/internal',
+        ]),
+    ]);
+
+    $result = (new HttpReadabilityExtractor)->extract('https://example.com/redirect');
+
+    expect($result->status)->toBe(ExtractionStatus::Blocked);
+
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), '10.0.0.5'));
+});
+
+test('a page with a bogus meta charset does not throw', function () {
+    Http::fake([
+        'example.com/*' => Http::response(
+            '<html><head><meta charset="x-bogus"><title>Bogus</title></head><body><article><p>'
+                .str_repeat('word ', 60).'</p></article></body></html>',
+            200,
+            ['Content-Type' => 'text/html'],
+        ),
+    ]);
+
+    $result = (new HttpReadabilityExtractor)->extract('https://example.com/bogus-charset');
+
+    expect($result->status)->toBeIn([ExtractionStatus::Ok, ExtractionStatus::Failed]);
+});
+
+test('a body that never finishes reading within the configured timeout fails as transient', function () {
+    // A timeout of 0 makes the very next wall-clock check already past the
+    // deadline, which reproduces a slow-drip server without an actual
+    // sleep: the assertion still runs in well under a second. The body
+    // needs to be bigger than one read chunk (8KB) so the deadline check
+    // is reached at least once.
+    config()->set('scraping.timeout', 0);
+
+    Http::fake([
+        'example.com/*' => Http::response(str_repeat('a', 20000), 200, [
+            'Content-Type' => 'text/html',
+        ]),
+    ]);
+
+    $result = (new HttpReadabilityExtractor)->extract('https://example.com/slow-drip');
+
+    expect($result->status)->toBe(ExtractionStatus::Failed)
+        ->and($result->transient)->toBeTrue()
+        ->and($result->error)->toContain('deadline');
 });
