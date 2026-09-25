@@ -174,6 +174,37 @@ test('pruning 7 snapshots keeps 5 and never deletes the latest one, even when it
         ]);
 });
 
+test('seven successive changes keep five snapshots, always including the original and the latest', function () {
+    config()->set('scraping.keep_snapshots', 5);
+
+    foreach (range(1, 7) as $revision) {
+        $this->travel(1)->days();
+        $this->recorder->record($this->link, okExtraction("Revision {$revision} of the parked page"), $this->link->link);
+    }
+
+    $link = $this->link->fresh();
+    $remaining = $link->snapshots()->orderBy('fetched_at')->pluck('content_text')->all();
+
+    expect($remaining)->toBe([
+        'Revision 1 of the parked page',
+        'Revision 4 of the parked page',
+        'Revision 5 of the parked page',
+        'Revision 6 of the parked page',
+        'Revision 7 of the parked page',
+    ])->and($link->latestSnapshot->content_text)->toBe('Revision 7 of the parked page');
+});
+
+test('with a retention of one, only the latest snapshot is kept', function () {
+    config()->set('scraping.keep_snapshots', 1);
+
+    foreach (range(1, 3) as $revision) {
+        $this->travel(1)->days();
+        $this->recorder->record($this->link, okExtraction("Revision {$revision}"), $this->link->link);
+    }
+
+    expect($this->link->fresh()->snapshots()->pluck('content_text')->all())->toBe(['Revision 3']);
+});
+
 test('the lock serializes two recorders with identical content into one snapshot', function () {
     Sleep::fake(syncWithCarbon: true);
 

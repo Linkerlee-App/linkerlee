@@ -68,7 +68,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | How many versions of a link's extracted text are kept. Older ones are
-    | pruned when a new snapshot is stored; the latest is never pruned.
+    | pruned when a new snapshot is stored. The latest and the first (the
+    | page as it was saved) are never pruned while the limit allows two; the
+    | rest of the limit keeps the newest others.
     |
     */
 

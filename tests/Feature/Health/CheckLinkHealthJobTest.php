@@ -489,7 +489,7 @@ test('a trashed link is skipped', function () {
         ->and(Link::withTrashed()->find($this->link->id)->last_checked_at)->toBeNull();
 });
 
-test('repeated real changes keep only the configured five snapshots', function () {
+test('repeated real changes keep only the configured five snapshots, including the original', function () {
     $link = givenSnapshot($this->link, healthArticle('rev0'));
     Http::fake(['https://example.com/article' => Http::response('', 200)]);
 
@@ -503,6 +503,7 @@ test('repeated real changes keep only the configured five snapshots', function (
     $link->refresh();
 
     expect($link->snapshots()->count())->toBe(5)
+        ->and($link->snapshots()->pluck('content_text'))->toContain(healthArticle('rev0'))
         ->and($link->latestSnapshot->content_text)->toBe(healthArticle('rev6'));
 });
 

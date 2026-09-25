@@ -82,23 +82,38 @@ class SnapshotRecorder
     }
 
     /**
-     * Deletes the link's snapshots beyond `scraping.keep_snapshots`, newest
-     * first by `fetched_at`. The latest snapshot always counts towards the
-     * limit and is never deleted, even when it is not the newest.
+     * Deletes the link's snapshots beyond `scraping.keep_snapshots`. The
+     * extracted text is the source of truth, so two snapshots are always
+     * kept first: the latest (`latest_snapshot_id`), and the first one ever
+     * stored (the oldest by `fetched_at`), which holds the page as it was
+     * saved and must survive a page (a parked domain, say) whose text keeps
+     * changing. The rest of the limit goes to the newest other snapshots.
+     * With a limit of one, only the latest is kept.
      */
     public function pruneSnapshots(Link $link): void
     {
         $keep = max(1, (int) config('scraping.keep_snapshots', 5));
-        $latestId = $link->latest_snapshot_id;
 
-        $newestIds = $link->snapshots()
-            ->when($latestId, fn ($query) => $query->whereKeyNot($latestId))
-            ->orderByDesc('fetched_at')
-            ->orderByDesc('id')
-            ->limit($latestId ? $keep - 1 : $keep)
-            ->pluck('id');
+        $firstId = $link->snapshots()->orderBy('fetched_at')->orderBy('id')->value('id');
 
-        $keptIds = $latestId ? $newestIds->push($latestId) : $newestIds;
+        $keptIds = collect([$link->latest_snapshot_id, $firstId])
+            ->filter()
+            ->unique()
+            ->take($keep)
+            ->values();
+
+        $remaining = $keep - $keptIds->count();
+
+        if ($remaining > 0) {
+            $keptIds = $keptIds->merge(
+                $link->snapshots()
+                    ->whereKeyNot($keptIds->all())
+                    ->orderByDesc('fetched_at')
+                    ->orderByDesc('id')
+                    ->limit($remaining)
+                    ->pluck('id'),
+            );
+        }
 
         $link->snapshots()->whereKeyNot($keptIds->all())->delete();
     }
