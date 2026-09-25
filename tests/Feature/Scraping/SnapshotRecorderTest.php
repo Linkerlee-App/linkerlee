@@ -6,6 +6,7 @@ use App\Jobs\ExtractContentJob;
 use App\Models\Link;
 use App\Models\LinkSnapshot;
 use App\Models\User;
+use App\Scraping\Drivers\FakeExtractor;
 use App\Scraping\ExtractionResult;
 use App\Scraping\RecordOutcome;
 use App\Scraping\SnapshotRecorder;
@@ -18,9 +19,14 @@ use Illuminate\Support\Sleep;
 
 beforeEach(function () {
     Http::preventStrayRequests();
+    FakeExtractor::reset();
 
     $this->link = Link::factory()->create(['user_id' => User::factory()]);
     $this->recorder = app(SnapshotRecorder::class);
+});
+
+afterEach(function () {
+    FakeExtractor::reset();
 });
 
 /**
@@ -308,4 +314,27 @@ test('compareForNoise stays the last parameter, so it can be passed by name', fu
     $outcome = $this->recorder->record($this->link, okExtraction('Body'), $this->link->link, compareForNoise: true);
 
     expect($outcome)->toBe(RecordOutcome::Created);
+});
+
+test('a superseded extraction dispatches the re-extraction only after the lock is released, so the nested run does not block on it', function () {
+    FakeExtractor::respondWith('https://example.com/edited', ExtractionResult::ok('fake', 'Edited page body'));
+
+    $originalUrl = $this->link->link;
+
+    Link::query()->whereKey($this->link->id)->update(['link' => 'https://example.com/edited']);
+
+    $start = microtime(true);
+
+    $outcome = $this->recorder->record($this->link, okExtraction('Old page body'), $originalUrl);
+
+    $elapsed = microtime(true) - $start;
+
+    expect($outcome)->toBe(RecordOutcome::Superseded)
+        ->and($elapsed)->toBeLessThan(2.0);
+
+    $link = Link::query()->find($this->link->id);
+
+    expect(FakeExtractor::$calls)->toBe(['https://example.com/edited'])
+        ->and($link->extraction_status)->toBe(ExtractionStatus::Ok)
+        ->and($link->latestSnapshot->content_text)->toBe('Edited page body');
 });

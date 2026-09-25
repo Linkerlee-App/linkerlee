@@ -48,7 +48,12 @@ class SnapshotRecorder
      *
      * When the link's URL no longer matches the URL that was extracted (it was
      * edited while the extraction ran), nothing is written, a fresh
-     * {@see ExtractContentJob} is queued and the outcome is Superseded.
+     * {@see ExtractContentJob} is queued and the outcome is Superseded. That
+     * re-dispatch happens only after the lock above has been released: on the
+     * `sync` queue connection the dispatch runs the job inline, and it needs
+     * its own turn at the same lock, so dispatching it from inside
+     * {@see self::recordLocked()} would make it queue behind itself and time
+     * out.
      *
      * @param  string  $extractedUrl  The URL the result was extracted from.
      * @param  bool  $compareForNoise  Reserved for the health check. It has no effect yet.
@@ -57,8 +62,14 @@ class SnapshotRecorder
      */
     public function record(Link $link, ExtractionResult $result, string $extractedUrl, bool $compareForNoise = false): RecordOutcome
     {
-        return Cache::lock("link-snapshot:{$link->id}", self::LOCK_SECONDS)
+        $outcome = Cache::lock("link-snapshot:{$link->id}", self::LOCK_SECONDS)
             ->block(self::LOCK_WAIT_SECONDS, fn (): RecordOutcome => $this->recordLocked($link, $result, $extractedUrl));
+
+        if ($outcome === RecordOutcome::Superseded) {
+            ExtractContentJob::dispatch($link)->afterCommit();
+        }
+
+        return $outcome;
     }
 
     /**
@@ -114,8 +125,6 @@ class SnapshotRecorder
             ->load($loadedRelations);
 
         if ($link->link !== $extractedUrl) {
-            ExtractContentJob::dispatch($link)->afterCommit();
-
             return RecordOutcome::Superseded;
         }
 
