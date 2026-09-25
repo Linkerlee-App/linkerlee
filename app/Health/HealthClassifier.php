@@ -15,22 +15,26 @@ class HealthClassifier
     /**
      * Classifies a health check's HTTP response.
      *
-     * `$permanentRedirect` says whether the hop away from `$originalHost`
-     * was a 301/308 (permanent) rather than a 302/307 (temporary); only a
-     * permanent redirect to a genuinely different host counts as
-     * {@see HealthStatus::Redirected}. Everything else that isn't 2xx,
-     * 404/410, is treated as {@see HealthStatus::Error}, including
+     * `$status` is the status of the last response seen: the final page
+     * after a redirect walk, or the redirect itself when the walk stopped
+     * there. `$permanentRedirect` says whether a hop on the way was a
+     * 301/308 (permanent) rather than a 302/307 (temporary); only a
+     * permanent redirect that ends on a genuinely different host, and whose
+     * final response is not a 4xx/5xx, counts as
+     * {@see HealthStatus::Redirected}. A redirect that ends on a missing or
+     * failing page is classified by that page. Everything else that isn't
+     * 2xx, 404/410, is treated as {@see HealthStatus::Error}, including
      * temporary redirects and permanent redirects that stay on the same
      * host.
      */
     public function classifyResponse(int $status, ?string $originalHost, ?string $finalHost, bool $permanentRedirect): HealthStatus
     {
-        if ($status >= 200 && $status < 300) {
-            return HealthStatus::Ok;
+        if ($permanentRedirect && $status >= 200 && $status < 400 && $this->hostsDiffer($originalHost, $finalHost)) {
+            return HealthStatus::Redirected;
         }
 
-        if ($permanentRedirect && $this->hostsDiffer($originalHost, $finalHost)) {
-            return HealthStatus::Redirected;
+        if ($status >= 200 && $status < 300) {
+            return HealthStatus::Ok;
         }
 
         if ($status === 404 || $status === 410) {
