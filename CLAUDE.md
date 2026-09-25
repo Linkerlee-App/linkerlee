@@ -32,6 +32,14 @@ Roadmap in [README.md](README.md) for what is merely intended.
 - Full-page content extraction into versioned `link_snapshots`, via the queued
   `ExtractContentJob` — also needs a queue worker, and `php artisan linkerlee:extract`
   backfills links saved before extraction existed
+- Link health checks: the hourly `linkerlee:check-health` command dispatches
+  `CheckLinkHealthJob` for links whose `next_check_at` is due, re-extracting content
+  and marking a page Gone only after `link_health.failure_threshold` consecutive
+  failures — a health check never deletes a link or its snapshots
+- Content enrichment: each new snapshot is summarized (Claude Haiku by default) and
+  split into `content_chunks` with pgvector embeddings (local Ollama, `nomic-embed-text`,
+  768 dimensions by default), all rebuildable from stored `content_text` with no
+  refetch via `linkerlee:resummarize`, `linkerlee:rechunk` and `linkerlee:reembed`
 - URLs up to 2048 characters (`Link::MAX_URL_LENGTH`); titles up to 255
 - Tagging via spatie/laravel-tags, with tag filtering across the links, dashboard and tags views
 - Tag suggestions derived from the fetched page text (`SuggestTagController`)
@@ -228,6 +236,8 @@ php artisan linkerlee:extract
   no stemming, first 100k chars, no GIN index — search is user-scoped), queried via `websearch_to_tsquery('simple', ?)`. The older
   `links_content_fulltext` migration is MySQL-guarded history and a no-op on Postgres
 - `links.search_vector` is in `Link::$hidden`; never select it into a response
+- The `pgvector` extension is required: `content_chunks.embedding` is a `vector(768)`
+  column holding chunk embeddings, with no HNSW/ivfflat index
 - Migrations in `database/migrations/`
 - Seeders in `database/seeders/`
 - Factories in `database/factories/`
@@ -288,6 +298,7 @@ When modifying authentication flows, be aware that Fortify handles the backend l
 ### Queue Jobs
 The application uses database queues by default. Queue jobs should be processed via `php artisan queue:work` or `queue:listen`. The `composer dev` command automatically starts a queue listener.
 Link health checks additionally need the scheduler running (`php artisan schedule:work`, or cron calling `schedule:run`) to dispatch the hourly `linkerlee:check-health` command; `composer dev` starts it for you.
+Event auto-discovery is disabled (`bootstrap/app.php` `withEvents(discover: false)`); register listeners explicitly in `AppServiceProvider`.
 
 ### Tailwind CSS v4
 Uses the new Tailwind v4 via the `@tailwindcss/vite` plugin. There is no `tailwind.config.js` —

@@ -294,6 +294,29 @@ happen — this is the single most common self-hosting mistake. After the first 
 The scheduler must also run — `php artisan schedule:work`, or a cron entry calling
 `php artisan schedule:run` every minute — or link health checks never fire.
 
+### Content enrichment
+
+Each newly extracted snapshot is summarized, split into chunks and embedded, so this needs
+its own one-time step after the first deploy:
+
+```bash
+# On the Ollama host:
+ollama pull nomic-embed-text
+
+# Then, once the queue worker above is running:
+php artisan linkerlee:resummarize
+php artisan linkerlee:rechunk
+```
+
+This backfills every existing snapshot; the queue worker takes care of every new one from then
+on. `ANTHROPIC_API_KEY` (for summaries) and `OLLAMA_URL` (for embeddings, pointing at your
+Ollama server) must be set in `.env`, and the **`pgvector` Postgres extension is required** —
+`content_chunks.embedding` is stored as a `vector` column.
+
+`linkerlee:reembed` is a separate command for switching embedding models: it refuses to run
+when the new model's dimensions differ from the existing `content_chunks.embedding` column and
+prints the migration needed to resize it first.
+
 ## Roadmap
 
 Not built, but intended. Listed here so nobody mistakes intent for reality:
