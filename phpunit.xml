@@ -31,5 +31,9 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="SCRAPING_DRIVER" value="fake"/>
+        <env name="SCRAPING_FALLBACKS" value=""/>
+        <env name="SUMMARY_DRIVER" value="fake"/>
+        <env name="EMBEDDING_DRIVER" value="fake"/>
     </php>
 </phpunit>

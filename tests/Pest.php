@@ -20,6 +20,19 @@ pest()->extend(TestCase::class)
 
 /*
 |--------------------------------------------------------------------------
+| Scraping unit tests
+|--------------------------------------------------------------------------
+|
+| These exercise config(), Http::fake() and the other facades, so they need
+| the app booted, but they never touch the database, so no RefreshDatabase.
+|
+*/
+
+pest()->extend(TestCase::class)
+    ->in('Unit/Scraping');
+
+/*
+|--------------------------------------------------------------------------
 | Expectations
 |--------------------------------------------------------------------------
 |
