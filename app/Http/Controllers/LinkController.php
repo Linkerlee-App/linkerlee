@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ExtractionStatus;
 use App\Enums\LinkSource;
+use App\Events\LinkCreated;
 use App\Http\Requests\StoreLinkRequest;
 use App\Http\Requests\UpdateLinkRequest;
 use App\Http\Resources\LinkResource;
+use App\Jobs\ExtractContentJob;
 use App\Jobs\FetchLinkMetadataJob;
 use App\Models\Group;
 use App\Models\Link;
@@ -92,6 +95,7 @@ class LinkController extends Controller
         $link->save();
 
         FetchLinkMetadataJob::dispatch($link);
+        LinkCreated::dispatch($link);
 
         $groupIds = $validated['groups'];
 
@@ -160,10 +164,18 @@ class LinkController extends Controller
 
         $urlChanged = $link->isDirty('link');
 
+        if ($urlChanged) {
+            $link->extraction_status = ExtractionStatus::Pending;
+        }
+
         $link->save();
 
         if ($urlChanged || empty($link->title) || $link->metadata_fetched_at === null) {
             FetchLinkMetadataJob::dispatch($link);
+        }
+
+        if ($urlChanged) {
+            ExtractContentJob::dispatch($link)->afterCommit();
         }
 
         $groupIds = $validated['groups'];

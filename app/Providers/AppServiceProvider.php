@@ -47,10 +47,14 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * Every newly saved link gets its article text extracted in the background.
+     *
+     * Dispatched after commit, so a link created inside a transaction (an
+     * import, for example) never races the job against a row that is not
+     * there yet.
      */
     protected function configureEvents(): void
     {
-        Event::listen(LinkCreated::class, fn (LinkCreated $event) => ExtractContentJob::dispatch($event->link));
+        Event::listen(LinkCreated::class, fn (LinkCreated $event) => ExtractContentJob::dispatch($event->link)->afterCommit());
     }
 
     /**

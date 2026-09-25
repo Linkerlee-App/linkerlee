@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\LinkSource;
+use App\Events\LinkCreated;
 use App\Models\Group;
 use App\Models\Link;
 use App\Models\User;
@@ -279,6 +280,8 @@ class ImportService
         }
 
         $link->save();
+
+        LinkCreated::dispatch($link);
 
         if (! empty($linkData['archived'])) {
             $link->delete();
