@@ -2,10 +2,13 @@
 
 namespace App\Providers;
 
+use App\Events\LinkCreated;
+use App\Jobs\ExtractContentJob;
 use App\Scraping\ScrapingManager;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -39,6 +42,15 @@ class AppServiceProvider extends ServiceProvider
 
         $this->configureDefaults();
         $this->configureRoutePatterns();
+        $this->configureEvents();
+    }
+
+    /**
+     * Every newly saved link gets its article text extracted in the background.
+     */
+    protected function configureEvents(): void
+    {
+        Event::listen(LinkCreated::class, fn (LinkCreated $event) => ExtractContentJob::dispatch($event->link));
     }
 
     /**

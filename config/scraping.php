@@ -62,6 +62,18 @@ return [
 
     'min_word_count' => (int) env('SCRAPING_MIN_WORD_COUNT', 50),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Snapshot retention
+    |--------------------------------------------------------------------------
+    |
+    | How many versions of a link's extracted text are kept. Older ones are
+    | pruned when a new snapshot is stored; the latest is never pruned.
+    |
+    */
+
+    'keep_snapshots' => (int) env('SCRAPING_KEEP_SNAPSHOTS', 5),
+
     'browsershot' => [
         'chrome_path' => env('BROWSERSHOT_CHROME_PATH'),
         'node_binary' => env('BROWSERSHOT_NODE_BINARY'),
