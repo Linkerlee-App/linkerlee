@@ -316,6 +316,36 @@ test('compareForNoise stays the last parameter, so it can be passed by name', fu
     expect($outcome)->toBe(RecordOutcome::Created);
 });
 
+test('a link\'s first snapshot schedules its next health check', function () {
+    $outcome = $this->recorder->record($this->link, okExtraction('First body'), $this->link->link);
+    $link = $this->link->fresh();
+
+    // Both timestamps are read back from the same `timestampTz` round trip,
+    // so comparing them to each other (rather than to a freshly computed
+    // `now()`) is unaffected by the database session's timezone.
+    expect($outcome)->toBe(RecordOutcome::Created)
+        ->and($link->check_interval_days)->toBe(config('link_health.initial_interval_days'))
+        ->and($link->next_check_at)->not->toBeNull()
+        ->and((int) round($link->extracted_at->diffInDays($link->next_check_at)))->toBe((int) config('link_health.initial_interval_days'));
+});
+
+test('a later snapshot on the same link does not reschedule an already-scheduled health check', function () {
+    $this->recorder->record($this->link, okExtraction('First body'), $this->link->link);
+
+    $scheduledFor = $this->link->fresh()->extracted_at->addDays(2);
+
+    $this->link->fresh()->forceFill([
+        'next_check_at' => $scheduledFor,
+        'check_interval_days' => 2,
+    ])->save();
+
+    $this->recorder->record($this->link, okExtraction('Second body'), $this->link->link);
+    $link = $this->link->fresh();
+
+    expect($link->check_interval_days)->toBe(2)
+        ->and($link->next_check_at->equalTo($scheduledFor))->toBeTrue();
+});
+
 test('a superseded extraction dispatches the re-extraction only after the lock is released, so the nested run does not block on it', function () {
     FakeExtractor::respondWith('https://example.com/edited', ExtractionResult::ok('fake', 'Edited page body'));
 

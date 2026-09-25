@@ -109,6 +109,9 @@ class SnapshotRecorder
      * force-deleted after the caller loaded it fails quietly with no writes
      * instead of throwing. Like refresh(), the caller's instance ends up with
      * the current attributes and its loaded relations reloaded.
+     *
+     * A link's very first snapshot also schedules its first health check,
+     * `link_health.initial_interval_days` out.
      */
     private function recordLocked(Link $link, ExtractionResult $result, string $extractedUrl): RecordOutcome
     {
@@ -149,7 +152,9 @@ class SnapshotRecorder
             return RecordOutcome::Unchanged;
         }
 
-        $snapshot = DB::transaction(function () use ($link, $result): LinkSnapshot {
+        $isFirstSnapshot = $link->latest_snapshot_id === null;
+
+        $snapshot = DB::transaction(function () use ($link, $result, $isFirstSnapshot): LinkSnapshot {
             $fetchedAt = now();
 
             $snapshot = $link->snapshots()->create([
@@ -177,6 +182,10 @@ class SnapshotRecorder
                 'extracted_at' => $fetchedAt,
                 'etag' => self::capString($result->etag),
                 'last_modified' => self::capString($result->lastModified),
+                ...($isFirstSnapshot ? [
+                    'next_check_at' => $fetchedAt->copy()->addDays((int) config('link_health.initial_interval_days')),
+                    'check_interval_days' => (int) config('link_health.initial_interval_days'),
+                ] : []),
             ])->save();
 
             $link->setRelation('latestSnapshot', $snapshot);

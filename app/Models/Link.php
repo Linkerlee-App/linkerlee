@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Concerns\HasCurrentUserScope;
 use App\Enums\ExtractionStatus;
+use App\Enums\HealthStatus;
 use App\Enums\LinkSource;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -105,6 +106,12 @@ class Link extends Model implements Searchable
             'source' => LinkSource::class,
             'extraction_status' => ExtractionStatus::class,
             'extracted_at' => 'datetime',
+            'health_status' => HealthStatus::class,
+            'last_checked_at' => 'datetime',
+            'next_check_at' => 'datetime',
+            'content_changed_at' => 'datetime',
+            'check_interval_days' => 'integer',
+            'consecutive_failures' => 'integer',
         ];
     }
 
