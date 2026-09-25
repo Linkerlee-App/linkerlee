@@ -54,4 +54,18 @@ class LinkSnapshot extends Model
     {
         return $this->belongsTo(Link::class)->withTrashed();
     }
+
+    /**
+     * Whether this is still the latest snapshot of a live link, re-read from
+     * the database. A snapshot of a deleted or trashed link, or one that a
+     * newer snapshot has superseded, is not worth enriching.
+     */
+    public function isCurrent(): bool
+    {
+        $link = Link::withTrashed()->find($this->link_id);
+
+        return $link !== null
+            && ! $link->trashed()
+            && $link->latest_snapshot_id === $this->id;
+    }
 }

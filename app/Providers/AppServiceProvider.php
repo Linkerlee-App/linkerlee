@@ -5,7 +5,9 @@ namespace App\Providers;
 use App\Enrichment\EmbeddingManager;
 use App\Enrichment\SummaryManager;
 use App\Events\LinkCreated;
+use App\Events\LinkSnapshotCreated;
 use App\Jobs\ExtractContentJob;
+use App\Listeners\EnrichSnapshot;
 use App\Scraping\ScrapingManager;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
@@ -55,10 +57,15 @@ class AppServiceProvider extends ServiceProvider
      * Dispatched after commit, so a link created inside a transaction (an
      * import, for example) never races the job against a row that is not
      * there yet.
+     *
+     * Every newly stored snapshot is then summarized, chunked and embedded.
+     * Listeners are registered only here: event discovery is disabled in
+     * bootstrap/app.php, so none is registered twice.
      */
     protected function configureEvents(): void
     {
         Event::listen(LinkCreated::class, fn (LinkCreated $event) => ExtractContentJob::dispatch($event->link)->afterCommit());
+        Event::listen(LinkSnapshotCreated::class, EnrichSnapshot::class);
     }
 
     /**
