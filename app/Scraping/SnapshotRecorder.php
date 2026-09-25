@@ -35,6 +35,11 @@ class SnapshotRecorder
     private const LOCK_WAIT_SECONDS = 10;
 
     /**
+     * The length of the varchar columns scraped strings are written to.
+     */
+    private const MAX_STRING_LENGTH = 255;
+
+    /**
      * Records the result under the per-link lock. A failure updates only the
      * status and error. Text that hashes the same as the latest snapshot only
      * refreshes `extracted_at` and the validators. New text becomes a snapshot,
@@ -82,10 +87,25 @@ class SnapshotRecorder
 
     /**
      * The body of {@see self::record()}, run while holding the link's lock.
+     *
+     * The link is re-read here rather than with refresh(), so a link
+     * force-deleted after the caller loaded it fails quietly with no writes
+     * instead of throwing. Like refresh(), the caller's instance ends up with
+     * the current attributes and its loaded relations reloaded.
      */
     private function recordLocked(Link $link, ExtractionResult $result): RecordOutcome
     {
-        $link->refresh();
+        $fresh = Link::withTrashed()->find($link->getKey());
+
+        if ($fresh === null) {
+            return RecordOutcome::Failed;
+        }
+
+        $loadedRelations = array_values(array_diff(array_keys($link->getRelations()), ['pivot']));
+
+        $link->setRawAttributes($fresh->getAttributes(), true)
+            ->setRelations([])
+            ->load($loadedRelations);
 
         if (! $result->isOk()) {
             $link->forceFill([
@@ -101,8 +121,8 @@ class SnapshotRecorder
                 'extraction_status' => ExtractionStatus::Ok,
                 'extraction_error' => null,
                 'extracted_at' => now(),
-                'etag' => $result->etag,
-                'last_modified' => $result->lastModified,
+                'etag' => self::capString($result->etag),
+                'last_modified' => self::capString($result->lastModified),
             ])->save();
 
             return RecordOutcome::Unchanged;
@@ -116,14 +136,14 @@ class SnapshotRecorder
                 'http_status' => $result->httpStatus,
                 'final_url' => $result->finalUrl,
                 'title' => $result->title,
-                'author' => $result->author,
+                'author' => self::capString($result->author),
                 'published_at' => $result->publishedAt,
                 'content_text' => $result->contentText,
                 'content_hash' => $result->contentHash,
                 'word_count' => $result->wordCount,
                 'metadata' => [
-                    'etag' => $result->etag,
-                    'last_modified' => $result->lastModified,
+                    'etag' => self::capString($result->etag),
+                    'last_modified' => self::capString($result->lastModified),
                     'extractor' => $result->extractor,
                 ],
                 'fetched_at' => $fetchedAt,
@@ -134,8 +154,8 @@ class SnapshotRecorder
                 'extraction_status' => ExtractionStatus::Ok,
                 'extraction_error' => null,
                 'extracted_at' => $fetchedAt,
-                'etag' => $result->etag,
-                'last_modified' => $result->lastModified,
+                'etag' => self::capString($result->etag),
+                'last_modified' => self::capString($result->lastModified),
             ])->save();
 
             $link->setRelation('latestSnapshot', $snapshot);
@@ -148,5 +168,14 @@ class SnapshotRecorder
         LinkSnapshotCreated::dispatch($snapshot);
 
         return RecordOutcome::Created;
+    }
+
+    /**
+     * Caps a scraped string at the varchar length, so one junk byline or an
+     * over-long header cannot make the whole write fail.
+     */
+    private static function capString(?string $value): ?string
+    {
+        return $value === null ? null : mb_substr($value, 0, self::MAX_STRING_LENGTH);
     }
 }

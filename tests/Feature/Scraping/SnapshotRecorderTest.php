@@ -199,3 +199,58 @@ test('a recorder gives up when the lock stays held', function () {
 
     expect(LinkSnapshot::query()->count())->toBe(0);
 });
+
+test('an over-long author, etag and last_modified are capped at 255 characters instead of failing the insert', function () {
+    $outcome = $this->recorder->record($this->link, okExtraction('Body text', [
+        'author' => str_repeat('a', 300),
+        'etag' => str_repeat('e', 300),
+        'lastModified' => str_repeat('m', 300),
+    ]));
+
+    $snapshot = LinkSnapshot::query()->sole();
+    $link = $this->link->fresh();
+
+    expect($outcome)->toBe(RecordOutcome::Created)
+        ->and(mb_strlen($snapshot->author))->toBe(255)
+        ->and(mb_strlen($snapshot->metadata['etag']))->toBe(255)
+        ->and(mb_strlen($snapshot->metadata['last_modified']))->toBe(255)
+        ->and(mb_strlen($link->etag))->toBe(255)
+        ->and(mb_strlen($link->last_modified))->toBe(255);
+});
+
+test('an over-long etag on unchanged content is capped at 255 characters', function () {
+    $this->recorder->record($this->link, okExtraction('Same body'));
+
+    $outcome = $this->recorder->record($this->link, okExtraction('Same body', ['etag' => str_repeat('e', 300)]));
+
+    expect($outcome)->toBe(RecordOutcome::Unchanged)
+        ->and(mb_strlen($this->link->fresh()->etag))->toBe(255);
+});
+
+test('a link force-deleted before the recorder re-reads it fails silently with no writes', function () {
+    Event::fake([LinkSnapshotCreated::class]);
+
+    $stale = Link::query()->find($this->link->id);
+    $this->link->forceDelete();
+
+    $outcome = $this->recorder->record($stale, okExtraction('Body text'));
+
+    expect($outcome)->toBe(RecordOutcome::Failed)
+        ->and(LinkSnapshot::query()->count())->toBe(0)
+        ->and(Cache::lock("link-snapshot:{$stale->id}", 1)->get())->toBeTrue();
+
+    Event::assertNotDispatched(LinkSnapshotCreated::class);
+});
+
+test('the caller\'s link instance is refreshed with current state and its loaded relations reloaded', function () {
+    $this->recorder->record($this->link, okExtraction('First body'));
+
+    $caller = Link::query()->with('latestSnapshot')->find($this->link->id);
+    $this->recorder->record($this->link, okExtraction('Second body'));
+
+    $this->recorder->record($caller, ExtractionResult::failure(ExtractionStatus::Failed, 'fake', 'boom'));
+
+    expect($caller->relationLoaded('latestSnapshot'))->toBeTrue()
+        ->and($caller->latestSnapshot->content_text)->toBe('Second body')
+        ->and($caller->extraction_status)->toBe(ExtractionStatus::Failed);
+});
