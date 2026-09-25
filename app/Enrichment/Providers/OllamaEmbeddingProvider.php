@@ -67,12 +67,20 @@ final class OllamaEmbeddingProvider implements EmbeddingProvider
             throw new EnrichmentProviderException('Ollama embedding response did not return one vector per input text.');
         }
 
-        return array_map(function (mixed $vector): array {
+        $dimensions = $this->dimensions();
+
+        return array_map(function (mixed $vector) use ($dimensions): array {
             if (! is_array($vector)) {
                 throw new EnrichmentProviderException('Ollama embedding response contained a malformed vector.');
             }
 
-            return array_values(array_map(static fn (mixed $component): float => (float) $component, $vector));
+            $vector = array_values(array_map(static fn (mixed $component): float => (float) $component, $vector));
+
+            if (count($vector) !== $dimensions) {
+                throw new EnrichmentProviderException('Ollama embedding response contained a vector of length '.count($vector).", expected {$dimensions}.");
+            }
+
+            return $vector;
         }, array_values($embeddings));
     }
 }

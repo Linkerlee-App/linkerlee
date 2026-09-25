@@ -77,6 +77,18 @@ test('a missing embeddings key throws', function () {
         ->toThrow(EnrichmentProviderException::class);
 });
 
+test('a vector whose length does not match the configured dimensions throws', function () {
+    Http::fake([
+        '127.0.0.1:11434/api/embed' => Http::response([
+            // dimensions is configured to 4 in beforeEach(); this vector has 3.
+            'embeddings' => [[0.1, 0.2, 0.3]],
+        ], 200),
+    ]);
+
+    expect(fn () => (new OllamaEmbeddingProvider)->embed(['text']))
+        ->toThrow(EnrichmentProviderException::class);
+});
+
 test('model, dimensions and withModel report the effective configuration', function () {
     $provider = new OllamaEmbeddingProvider;
 

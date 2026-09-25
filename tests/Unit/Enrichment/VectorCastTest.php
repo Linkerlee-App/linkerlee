@@ -2,6 +2,11 @@
 
 use App\Casts\VectorCast;
 use App\Models\ContentChunk;
+use Illuminate\Support\Facades\Http;
+
+beforeEach(function () {
+    Http::preventStrayRequests();
+});
 
 test('set serialises a float list to the pgvector text format', function () {
     $cast = new VectorCast;
