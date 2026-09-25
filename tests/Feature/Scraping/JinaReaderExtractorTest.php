@@ -88,3 +88,36 @@ test('a private host is blocked before any request is made', function () {
 
     expect($result->status)->toBe(ExtractionStatus::Blocked);
 });
+
+test('non-string title and publishedTime from jina are ignored instead of breaking the result', function () {
+    config()->set('scraping.jina.api_key', 'test-key');
+
+    Http::fake([
+        'r.jina.ai/*' => Http::response([
+            'data' => [
+                'title' => ['not', 'a', 'string'],
+                'content' => str_repeat('word ', 80),
+                'publishedTime' => 1710493200,
+            ],
+        ], 200),
+    ]);
+
+    $result = (new JinaReaderExtractor)->extract('https://example.com/article');
+
+    expect($result->status)->toBe(ExtractionStatus::Ok)
+        ->and($result->title)->toBeNull()
+        ->and($result->publishedAt)->toBeNull()
+        ->and($result->wordCount)->toBe(80);
+});
+
+test('a non-string content from jina is a failure', function () {
+    config()->set('scraping.jina.api_key', 'test-key');
+
+    Http::fake([
+        'r.jina.ai/*' => Http::response(['data' => ['content' => ['nested' => 'array']]], 200),
+    ]);
+
+    $result = (new JinaReaderExtractor)->extract('https://example.com/article');
+
+    expect($result->status)->toBe(ExtractionStatus::Failed);
+});

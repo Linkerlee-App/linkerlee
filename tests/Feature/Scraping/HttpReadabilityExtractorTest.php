@@ -3,6 +3,10 @@
 use App\Enums\ExtractionStatus;
 use App\Scraping\Drivers\HttpReadabilityExtractor;
 use App\Scraping\UrlGuard;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Psr7\FnStream;
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
@@ -238,4 +242,24 @@ test('the request is forced onto ipv4, so it connects to the same addresses UrlG
     (new HttpReadabilityExtractor)->extract('https://example.com/article');
 
     expect($sentOptions)->toHaveKey('force_ip_resolve', 'v4');
+});
+
+test('a read that stalls before the end of the body fails as transient instead of parsing a partial page', function () {
+    $reads = 0;
+    $stalledBody = FnStream::decorate(Utils::streamFor(''), [
+        'read' => function (int $length) use (&$reads): string {
+            return $reads++ === 0
+                ? '<html><body><article><p>'.str_repeat('word ', 60).'</p>'
+                : '';
+        },
+        'eof' => fn (): bool => false,
+    ]);
+
+    Http::fake(fn () => Create::promiseFor(new Psr7Response(200, ['Content-Type' => 'text/html'], $stalledBody)));
+
+    $result = (new HttpReadabilityExtractor)->extract('https://example.com/stalled');
+
+    expect($result->status)->toBe(ExtractionStatus::Failed)
+        ->and($result->transient)->toBeTrue()
+        ->and($result->error)->toContain('stalled');
 });

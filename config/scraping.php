@@ -31,7 +31,7 @@ return [
     |
     */
 
-    'fallbacks' => array_filter(explode(',', env('SCRAPING_FALLBACKS', 'browsershot'))),
+    'fallbacks' => array_values(array_filter(array_map('trim', explode(',', (string) env('SCRAPING_FALLBACKS', 'browsershot'))))),
 
     'drivers' => [
         'http_readability' => HttpReadabilityExtractor::class,

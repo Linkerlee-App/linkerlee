@@ -77,7 +77,7 @@ final class JinaReaderExtractor implements ContentExtractor
         return ExtractionResult::ok(self::NAME, $text, [
             ...$attrs,
             'finalUrl' => $url,
-            'title' => $data['title'] ?? null,
+            'title' => is_string($data['title'] ?? null) ? $data['title'] : null,
             'publishedAt' => $this->parsePublishedTime($data['publishedTime'] ?? null),
         ]);
     }

@@ -32,3 +32,19 @@ test('scraping thresholds are configured', function () {
         ->and(config('scraping.min_word_count'))->toBeInt()
         ->and(config('scraping.user_agent'))->toBeString()->not->toBeEmpty();
 });
+
+test('the fallbacks list is trimmed and drops empty entries', function () {
+    $previous = $_ENV['SCRAPING_FALLBACKS'] ?? null;
+
+    try {
+        putenv('SCRAPING_FALLBACKS=http_readability, browsershot,, ');
+        $_ENV['SCRAPING_FALLBACKS'] = $_SERVER['SCRAPING_FALLBACKS'] = 'http_readability, browsershot,, ';
+
+        $config = require config_path('scraping.php');
+    } finally {
+        putenv($previous === null ? 'SCRAPING_FALLBACKS' : "SCRAPING_FALLBACKS={$previous}");
+        $_ENV['SCRAPING_FALLBACKS'] = $_SERVER['SCRAPING_FALLBACKS'] = $previous ?? '';
+    }
+
+    expect($config['fallbacks'])->toBe(['http_readability', 'browsershot']);
+});

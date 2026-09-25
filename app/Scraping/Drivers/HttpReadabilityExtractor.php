@@ -8,6 +8,7 @@ use App\Scraping\Contracts\ContentExtractor;
 use App\Scraping\ExtractionResult;
 use App\Scraping\ReadabilityParser;
 use App\Scraping\ReadDeadlineExceededException;
+use App\Scraping\ReadStalledException;
 use App\Scraping\UrlGuard;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
@@ -110,7 +111,7 @@ final class HttpReadabilityExtractor implements ContentExtractor
 
         try {
             $body = $this->readBody($response, (int) config('scraping.max_bytes'), (float) config('scraping.timeout'));
-        } catch (ReadDeadlineExceededException $exception) {
+        } catch (ReadDeadlineExceededException|ReadStalledException $exception) {
             return ExtractionResult::failure(ExtractionStatus::Failed, self::NAME, $exception->getMessage(), [
                 ...$attrs,
                 'transient' => true,
@@ -158,7 +159,11 @@ final class HttpReadabilityExtractor implements ContentExtractor
      * drips a byte at a time could otherwise hold the job open well past
      * the configured timeout. This adds its own wall-clock deadline on top.
      *
+     * An empty read before the end of the stream means a read timed out, so
+     * the body is incomplete; that throws rather than returning a partial page.
+     *
      * @throws ReadDeadlineExceededException
+     * @throws ReadStalledException
      */
     private function readBody(Response $response, int $maxBytes, float $timeoutSeconds): ?string
     {
@@ -179,6 +184,10 @@ final class HttpReadabilityExtractor implements ContentExtractor
                 if (microtime(true) > $deadline) {
                     throw new ReadDeadlineExceededException('The read deadline was exceeded before the response body finished.');
                 }
+            }
+
+            if (strlen($buffer) <= $maxBytes && ! $stream->eof()) {
+                throw new ReadStalledException('The response body read stalled before the end of the page.');
             }
         } finally {
             $stream->close();
