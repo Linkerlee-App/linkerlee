@@ -4,6 +4,7 @@ namespace App\Scraping;
 
 use App\Enums\ExtractionStatus;
 use App\Events\LinkSnapshotCreated;
+use App\Health\ContentSimilarity;
 use App\Jobs\ExtractContentJob;
 use App\Models\Link;
 use App\Models\LinkSnapshot;
@@ -40,11 +41,14 @@ class SnapshotRecorder
      */
     private const MAX_STRING_LENGTH = 255;
 
+    public function __construct(private ContentSimilarity $similarity) {}
+
     /**
      * Records the result under the per-link lock. A failure updates only the
      * status and error. Text that hashes the same as the latest snapshot only
      * refreshes `extracted_at` and the validators. New text becomes a snapshot,
-     * and {@see LinkSnapshotCreated} fires once it is committed.
+     * and {@see LinkSnapshotCreated} fires once it is committed; when it
+     * replaces an earlier snapshot, `content_changed_at` is stamped too.
      *
      * When the link's URL no longer matches the URL that was extracted (it was
      * edited while the extraction ran), nothing is written, a fresh
@@ -56,14 +60,18 @@ class SnapshotRecorder
      * out.
      *
      * @param  string  $extractedUrl  The URL the result was extracted from.
-     * @param  bool  $compareForNoise  Reserved for the health check. It has no effect yet.
+     * @param  bool  $compareForNoise  Set by the health check only: text whose shingle similarity to
+     *                                 the latest snapshot reaches `link_health.noise_similarity` is
+     *                                 treated as unchanged (a timestamp, an ad slot, a view counter).
+     *                                 Content extraction never sets it, so text fetched after the
+     *                                 user edits the URL always replaces the old page's.
      *
      * @throws LockTimeoutException when another recorder holds the lock for too long
      */
     public function record(Link $link, ExtractionResult $result, string $extractedUrl, bool $compareForNoise = false): RecordOutcome
     {
         $outcome = Cache::lock("link-snapshot:{$link->id}", self::LOCK_SECONDS)
-            ->block(self::LOCK_WAIT_SECONDS, fn (): RecordOutcome => $this->recordLocked($link, $result, $extractedUrl));
+            ->block(self::LOCK_WAIT_SECONDS, fn (): RecordOutcome => $this->recordLocked($link, $result, $extractedUrl, $compareForNoise));
 
         if ($outcome === RecordOutcome::Superseded) {
             ExtractContentJob::dispatch($link)->afterCommit();
@@ -113,7 +121,7 @@ class SnapshotRecorder
      * A link's very first snapshot also schedules its first health check,
      * `link_health.initial_interval_days` out.
      */
-    private function recordLocked(Link $link, ExtractionResult $result, string $extractedUrl): RecordOutcome
+    private function recordLocked(Link $link, ExtractionResult $result, string $extractedUrl, bool $compareForNoise): RecordOutcome
     {
         $fresh = Link::withTrashed()->find($link->getKey());
 
@@ -140,7 +148,7 @@ class SnapshotRecorder
             return RecordOutcome::Failed;
         }
 
-        if ($link->latestSnapshot?->content_hash === $result->contentHash) {
+        if ($link->latestSnapshot?->content_hash === $result->contentHash || ($compareForNoise && $this->isNoise($link->latestSnapshot, $result))) {
             $link->forceFill([
                 'extraction_status' => ExtractionStatus::Ok,
                 'extraction_error' => null,
@@ -185,7 +193,7 @@ class SnapshotRecorder
                 ...($isFirstSnapshot ? [
                     'next_check_at' => $fetchedAt->copy()->addDays((int) config('link_health.initial_interval_days')),
                     'check_interval_days' => (int) config('link_health.initial_interval_days'),
-                ] : []),
+                ] : ['content_changed_at' => $fetchedAt]),
             ])->save();
 
             $link->setRelation('latestSnapshot', $snapshot);
@@ -198,6 +206,21 @@ class SnapshotRecorder
         LinkSnapshotCreated::dispatch($snapshot);
 
         return RecordOutcome::Created;
+    }
+
+    /**
+     * Whether the new text differs from the latest snapshot's only by noise:
+     * its shingle similarity reaches `link_health.noise_similarity`. With no
+     * snapshot yet there is nothing to compare against, so it is never noise.
+     */
+    private function isNoise(?LinkSnapshot $latest, ExtractionResult $result): bool
+    {
+        if ($latest === null) {
+            return false;
+        }
+
+        return $this->similarity->jaccard((string) $result->contentText, (string) $latest->content_text)
+            >= (float) config('link_health.noise_similarity');
     }
 
     /**

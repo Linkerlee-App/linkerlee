@@ -366,3 +366,85 @@ test('a superseded extraction dispatches the re-extraction only after the lock i
         ->and($link->extraction_status)->toBe(ExtractionStatus::Ok)
         ->and($link->latestSnapshot->content_text)->toBe('Edited page body');
 });
+
+/**
+ * A 300-word article, and the same article with only its last word changed:
+ * similar enough (Jaccard well above 0.9) to count as noise.
+ *
+ * @return array{0: string, 1: string}
+ */
+function noisyPair(): array
+{
+    $words = array_map(fn (int $i): string => "word{$i}", range(1, 300));
+    $original = implode(' ', $words);
+    $words[299] = 'changed-counter';
+
+    return [$original, implode(' ', $words)];
+}
+
+test('with compareForNoise, near-identical text is unchanged and only refreshes the bookkeeping', function () {
+    [$original, $noisy] = noisyPair();
+    Event::fake([LinkSnapshotCreated::class]);
+
+    $this->recorder->record($this->link, okExtraction($original, ['etag' => '"v1"']), $this->link->link);
+    $firstExtractedAt = $this->link->fresh()->extracted_at;
+
+    $this->travel(5)->minutes();
+
+    $outcome = $this->recorder->record(
+        $this->link,
+        okExtraction($noisy, ['etag' => '"v2"', 'lastModified' => 'Fri, 15 Mar 2024 09:00:00 GMT']),
+        $this->link->link,
+        compareForNoise: true,
+    );
+    $link = $this->link->fresh();
+
+    expect($outcome)->toBe(RecordOutcome::Unchanged)
+        ->and(LinkSnapshot::query()->count())->toBe(1)
+        ->and($link->latestSnapshot->content_text)->toBe($original)
+        ->and($link->content_changed_at)->toBeNull()
+        ->and($link->etag)->toBe('"v2"')
+        ->and($link->last_modified)->toBe('Fri, 15 Mar 2024 09:00:00 GMT')
+        ->and($link->extracted_at->greaterThan($firstExtractedAt))->toBeTrue();
+
+    Event::assertDispatchedTimes(LinkSnapshotCreated::class, 1);
+});
+
+test('without compareForNoise, near-identical text is still stored, so an extraction after a url edit always wins', function () {
+    [$original, $noisy] = noisyPair();
+
+    $this->recorder->record($this->link, okExtraction($original), $this->link->link);
+    $outcome = $this->recorder->record($this->link, okExtraction($noisy), $this->link->link);
+
+    expect($outcome)->toBe(RecordOutcome::Created)
+        ->and(LinkSnapshot::query()->count())->toBe(2)
+        ->and($this->link->fresh()->latestSnapshot->content_text)->toBe($noisy);
+});
+
+test('with compareForNoise, a real change is still stored', function () {
+    $this->recorder->record($this->link, okExtraction('An article about apples and how they grow in orchards'), $this->link->link);
+
+    $outcome = $this->recorder->record(
+        $this->link,
+        okExtraction('A completely different piece on the history of the bicycle'),
+        $this->link->link,
+        compareForNoise: true,
+    );
+
+    expect($outcome)->toBe(RecordOutcome::Created)
+        ->and(LinkSnapshot::query()->count())->toBe(2);
+});
+
+test('content_changed_at is stamped when a later snapshot replaces one, but not for the first', function () {
+    $this->travelTo(now()->startOfSecond());
+
+    $this->recorder->record($this->link, okExtraction('First body'), $this->link->link);
+
+    expect($this->link->fresh()->content_changed_at)->toBeNull();
+
+    $this->travel(1)->hour();
+
+    $this->recorder->record($this->link, okExtraction('Second body'), $this->link->link);
+
+    expect($this->link->fresh()->content_changed_at->equalTo(now()))->toBeTrue();
+});
