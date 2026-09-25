@@ -287,6 +287,7 @@ When modifying authentication flows, be aware that Fortify handles the backend l
 
 ### Queue Jobs
 The application uses database queues by default. Queue jobs should be processed via `php artisan queue:work` or `queue:listen`. The `composer dev` command automatically starts a queue listener.
+Link health checks additionally need the scheduler running (`php artisan schedule:work`, or cron calling `schedule:run`) to dispatch the hourly `linkerlee:check-health` command; `composer dev` starts it for you.
 
 ### Tailwind CSS v4
 Uses the new Tailwind v4 via the `@tailwindcss/vite` plugin. There is no `tailwind.config.js` —

@@ -58,6 +58,22 @@ services:
         condition: service_healthy
     stop_grace_period: 100s
 
+  # The scheduler. Fires the hourly `linkerlee:check-health` command; without
+  # it, due links are never re-checked for health. Do not remove it.
+  scheduler:
+    build:
+      context: .
+      target: app
+    image: linkerlee/app:latest
+    restart: unless-stopped
+    env_file: .env
+    command: ["php", "artisan", "schedule:work"]
+    volumes:
+      - storage:/var/www/html/storage
+    depends_on:
+      app:
+        condition: service_healthy
+
   postgres:
     image: postgres:17
     restart: unless-stopped

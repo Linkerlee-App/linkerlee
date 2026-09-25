@@ -250,6 +250,7 @@ sent; read it with `docker compose logs app` or at `/log-viewer`.
 | `web` | nginx on the port set by `APP_PORT`, serving `public/` and the built assets |
 | `app` | PHP-FPM. Runs the migrations and warms the config, route and view caches on startup |
 | `queue` | `php artisan queue:work --queue=default,ingestion,enrichment,health` — **the metadata fetcher and content extractor**. Without it, saved links stay untitled and their content is never extracted |
+| `scheduler` | `php artisan schedule:work` — fires the hourly `linkerlee:check-health` command. Without it, link health checks never run |
 | `postgres` | PostgreSQL 17 |
 
 Useful commands:
@@ -290,6 +291,8 @@ Then run `php artisan queue:work --queue=default,ingestion,enrichment,health` as
 long-running process. Without it, metadata enrichment and content extraction silently never
 happen — this is the single most common self-hosting mistake. After the first deploy, run
 `php artisan linkerlee:extract` once to backfill content extraction for links that predate it.
+The scheduler must also run — `php artisan schedule:work`, or a cron entry calling
+`php artisan schedule:run` every minute — or link health checks never fire.
 
 ## Roadmap
 
