@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\ExtractionStatus;
 use App\Enums\HealthStatus;
 use App\Health\CheckOutcome;
 use App\Health\CheckSchedule;
@@ -11,6 +12,7 @@ use App\Scraping\RecordOutcome;
 use App\Scraping\ScrapingManager;
 use App\Scraping\SnapshotRecorder;
 use App\Scraping\UrlGuard;
+use GuzzleHttp\Psr7\Exception\MalformedUriException;
 use GuzzleHttp\Psr7\UriResolver;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
@@ -48,6 +50,12 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
     private const MAX_CONSECUTIVE_FAILURES = 255;
 
     /**
+     * Statuses that mean the site refused the bot, not that the page is
+     * gone or broken: the check learns nothing about the page's health.
+     */
+    private const BLOCKED_STATUSES = [401, 403, 429];
+
+    /**
      * How long the unique lock outlives a job that never gets processed (a
      * lost worker, a flushed queue), so the next health-check run is not
      * blocked for long.
@@ -82,6 +90,11 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
      * for one the user edited. When the user did edit it mid-check, the
      * recorder has already queued a fresh extraction, and only
      * `last_checked_at` is written.
+     *
+     * A bot wall (401/403/429 at the probe, or a Blocked extraction) is
+     * "unknown": the status and failure count stand and the interval grows.
+     * An Unsupported extraction (a PDF, an image) is a live page with no text
+     * to snapshot. Only a Failed extraction counts as a failure.
      */
     public function handle(ScrapingManager $scraping, SnapshotRecorder $recorder, HealthClassifier $classifier, CheckSchedule $schedule): void
     {
@@ -90,10 +103,16 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
         }
 
         $url = $this->link->link;
-        $probe = $this->probe($url);
+        $probe = $this->probe($url, $classifier);
 
         if ($probe['status'] === 304) {
             $this->finish($schedule, CheckOutcome::Unchanged, $this->link->health_status ?? HealthStatus::Ok, 0);
+
+            return;
+        }
+
+        if (in_array($probe['status'], self::BLOCKED_STATUSES, true)) {
+            $this->finishUnknown($schedule);
 
             return;
         }
@@ -114,14 +133,25 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
         }
 
         $result = $scraping->extractFor($probe['finalUrl']);
+        $redirectUrl = $health === HealthStatus::Redirected ? $probe['finalUrl'] : null;
+
+        if ($result->status === ExtractionStatus::Blocked) {
+            $this->finishUnknown($schedule);
+
+            return;
+        }
+
+        if ($result->status === ExtractionStatus::Unsupported) {
+            $this->finish($schedule, CheckOutcome::Unchanged, $health, 0, ['redirect_url' => $redirectUrl]);
+
+            return;
+        }
 
         if (! $result->isOk()) {
             $this->finishFailure($schedule, HealthStatus::Error);
 
             return;
         }
-
-        $redirectUrl = $health === HealthStatus::Redirected ? $probe['finalUrl'] : null;
 
         if ($classifier->isSoft404($result, $this->link->latestSnapshot)) {
             $this->finish($schedule, CheckOutcome::Suspect, HealthStatus::Suspect, 0, ['redirect_url' => $redirectUrl]);
@@ -153,29 +183,38 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
     /**
      * Sends a conditional GET and follows up to {@see self::MAX_REDIRECTS}
      * redirects by hand, running {@see UrlGuard::check()} on the URL and on
-     * every hop before it is requested. The body is never read.
+     * every hop before it is requested. The body is never read, and the walk
+     * as a whole is bounded by `link_health.probe_deadline_seconds`.
      *
      * A null status means the probe failed without a usable response: the
-     * URL or a hop was refused by the guard, the connection failed, or there
-     * were too many redirects. `permanentRedirect` is true when any hop was a
-     * 301/308 to a different host.
+     * URL or a hop was refused by the guard, a Location could not be parsed,
+     * the connection failed, the deadline passed, or there were too many
+     * redirects.
+     *
+     * `permanentRedirect` describes the last hop that moved to a different
+     * host (ignoring "www."): true when it was a 301/308, false when it was
+     * temporary. Hops that stay on the host leave it alone, so a canonical
+     * 301 to "www." followed by a 302 to a login host is not permanent.
      *
      * @return array{status: int|null, finalUrl: string, permanentRedirect: bool}
      */
-    private function probe(string $url): array
+    private function probe(string $url, HealthClassifier $classifier): array
     {
         $current = $url;
         $permanentRedirect = false;
+        $deadline = now()->addSeconds((int) config('link_health.probe_deadline_seconds'));
 
         for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
-            if (UrlGuard::check($current) !== null) {
-                return ['status' => null, 'finalUrl' => $current, 'permanentRedirect' => $permanentRedirect];
+            $remainingSeconds = (int) floor(now()->diffInSeconds($deadline, false));
+
+            if ($remainingSeconds <= 0 || UrlGuard::check($current) !== null) {
+                return self::failedProbe($current, $permanentRedirect);
             }
 
-            $response = $this->request($current);
+            $response = $this->request($current, min((int) config('scraping.timeout'), $remainingSeconds));
 
             if ($response === null) {
-                return ['status' => null, 'finalUrl' => $current, 'permanentRedirect' => $permanentRedirect];
+                return self::failedProbe($current, $permanentRedirect);
             }
 
             $status = $response['status'];
@@ -184,29 +223,46 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
                 return ['status' => $status, 'finalUrl' => $current, 'permanentRedirect' => $permanentRedirect];
             }
 
-            $next = (string) UriResolver::resolve(Utils::uriFor($current), Utils::uriFor($response['location']));
+            try {
+                $next = (string) UriResolver::resolve(Utils::uriFor($current), Utils::uriFor($response['location']));
+            } catch (MalformedUriException) {
+                return self::failedProbe($current, $permanentRedirect);
+            }
 
-            if (in_array($status, [301, 308], true)
-                && strcasecmp((string) parse_url($current, PHP_URL_HOST), (string) parse_url($next, PHP_URL_HOST)) !== 0) {
-                $permanentRedirect = true;
+            $currentHost = parse_url($current, PHP_URL_HOST) ?: null;
+            $nextHost = parse_url($next, PHP_URL_HOST) ?: null;
+
+            if ($currentHost === null || $nextHost === null || $classifier->hostsDiffer($currentHost, $nextHost)) {
+                $permanentRedirect = in_array($status, [301, 308], true);
             }
 
             $current = $next;
         }
 
-        return ['status' => null, 'finalUrl' => $current, 'permanentRedirect' => $permanentRedirect];
+        return self::failedProbe($current, $permanentRedirect);
+    }
+
+    /**
+     * The probe's result when it ended without a usable response.
+     *
+     * @return array{status: null, finalUrl: string, permanentRedirect: bool}
+     */
+    private static function failedProbe(string $url, bool $permanentRedirect): array
+    {
+        return ['status' => null, 'finalUrl' => $url, 'permanentRedirect' => $permanentRedirect];
     }
 
     /**
      * One hop of the probe: a streamed GET that does not follow redirects,
-     * carrying the link's validators, whose body is closed unread.
+     * carrying the link's validators, whose body is closed unread. The
+     * timeout is capped by what is left of the probe's deadline.
      *
      * @return array{status: int, location: string|null}|null null when the connection failed
      */
-    private function request(string $url): ?array
+    private function request(string $url, int $timeoutSeconds): ?array
     {
         try {
-            $response = Http::timeout((int) config('scraping.timeout'))
+            $response = Http::timeout($timeoutSeconds)
                 ->withUserAgent((string) config('scraping.user_agent'))
                 ->withHeaders(array_filter([
                     'If-None-Match' => $this->link->etag,
@@ -233,19 +289,36 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
     /**
      * Counts one more failure. Below `link_health.failure_threshold` the
      * status is left as it was; at the threshold it becomes Gone or Error.
-     * Only a Gone link backs off to the longest interval.
+     * A link already Gone stays Gone on a mere error: only a success moves
+     * it off. Only a Gone link backs off to the longest interval.
      */
     private function finishFailure(CheckSchedule $schedule, HealthStatus $failure): void
     {
         $failures = min((int) $this->link->consecutive_failures + 1, self::MAX_CONSECUTIVE_FAILURES);
         $reachedThreshold = $failures >= (int) config('link_health.failure_threshold');
 
+        $status = match (true) {
+            $this->link->health_status === HealthStatus::Gone => HealthStatus::Gone,
+            $reachedThreshold => $failure,
+            default => $this->link->health_status,
+        };
+
         $this->finish(
             $schedule,
-            $reachedThreshold && $failure === HealthStatus::Gone ? CheckOutcome::Gone : CheckOutcome::Failure,
-            $reachedThreshold ? $failure : $this->link->health_status,
+            $status === HealthStatus::Gone ? CheckOutcome::Gone : CheckOutcome::Failure,
+            $status,
             $failures,
         );
+    }
+
+    /**
+     * Records a check that learned nothing about the page (the site blocked
+     * the bot): the status and failure count stand, and the interval grows
+     * as for an unchanged page.
+     */
+    private function finishUnknown(CheckSchedule $schedule): void
+    {
+        $this->finish($schedule, CheckOutcome::Unchanged, $this->link->health_status, (int) $this->link->consecutive_failures);
     }
 
     /**

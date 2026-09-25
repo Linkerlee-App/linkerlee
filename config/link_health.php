@@ -41,6 +41,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Probe deadline
+    |--------------------------------------------------------------------------
+    |
+    | The most wall-clock seconds one health check's probe may spend across
+    | all of its redirect hops, kept well inside the job's 60s timeout.
+    | Running past it counts as a failed check.
+    |
+    */
+
+    'probe_deadline_seconds' => (int) env('LINK_HEALTH_PROBE_DEADLINE_SECONDS', 30),
+
+    /*
+    |--------------------------------------------------------------------------
     | Failure threshold
     |--------------------------------------------------------------------------
     |

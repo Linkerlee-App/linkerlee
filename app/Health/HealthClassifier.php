@@ -93,7 +93,7 @@ class HealthClassifier
      * from anything, since a missing host means there's nothing to
      * compare against.
      */
-    private function hostsDiffer(?string $originalHost, ?string $finalHost): bool
+    public function hostsDiffer(?string $originalHost, ?string $finalHost): bool
     {
         if ($originalHost === null || $finalHost === null) {
             return false;

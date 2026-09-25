@@ -22,8 +22,6 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
-const HEALTH_URL = 'https://example.com/article';
-
 beforeEach(function () {
     Http::preventStrayRequests();
     FakeExtractor::reset();
@@ -34,7 +32,7 @@ beforeEach(function () {
 
     $this->link = Link::factory()->create([
         'user_id' => User::factory(),
-        'link' => HEALTH_URL,
+        'link' => 'https://example.com/article',
     ]);
 });
 
@@ -99,8 +97,8 @@ test('the job is unique per link until processing and runs once on the health qu
 
 test('a 200 with the same content hash is ok and unchanged, and the interval doubles', function () {
     $link = givenSnapshot($this->link, healthArticle('same'));
-    Http::fake([HEALTH_URL => Http::response('', 200)]);
-    FakeExtractor::respondWith(HEALTH_URL, ExtractionResult::ok('fake', healthArticle('same')));
+    Http::fake(['https://example.com/article' => Http::response('', 200)]);
+    FakeExtractor::respondWith('https://example.com/article', ExtractionResult::ok('fake', healthArticle('same')));
 
     runHealthCheck($link);
     $link->refresh();
@@ -120,8 +118,8 @@ test('a 200 with only a noisy diff is unchanged and stores no snapshot', functio
     $latestId = $link->latest_snapshot_id;
 
     $words[299] = 'updated-view-counter';
-    Http::fake([HEALTH_URL => Http::response('', 200)]);
-    FakeExtractor::respondWith(HEALTH_URL, ExtractionResult::ok('fake', implode(' ', $words)));
+    Http::fake(['https://example.com/article' => Http::response('', 200)]);
+    FakeExtractor::respondWith('https://example.com/article', ExtractionResult::ok('fake', implode(' ', $words)));
 
     runHealthCheck($link);
     $link->refresh();
@@ -136,8 +134,8 @@ test('a 200 with only a noisy diff is unchanged and stores no snapshot', functio
 test('a 200 with a real change stores a snapshot, stamps content_changed_at and resets the interval', function () {
     $link = givenSnapshot($this->link, healthArticle('before'), ['check_interval_days' => 56]);
     Event::fake([LinkSnapshotCreated::class]);
-    Http::fake([HEALTH_URL => Http::response('', 200)]);
-    FakeExtractor::respondWith(HEALTH_URL, ExtractionResult::ok('fake', healthArticle('after')));
+    Http::fake(['https://example.com/article' => Http::response('', 200)]);
+    FakeExtractor::respondWith('https://example.com/article', ExtractionResult::ok('fake', healthArticle('after')));
 
     runHealthCheck($link);
     $link->refresh();
@@ -159,7 +157,7 @@ test('a 304 is unchanged without calling the extractor', function () {
         'last_modified' => 'Fri, 15 Mar 2024 09:00:00 GMT',
     ]);
     FakeExtractor::reset();
-    Http::fake([HEALTH_URL => Http::response('', 304)]);
+    Http::fake(['https://example.com/article' => Http::response('', 304)]);
 
     runHealthCheck($link);
     $link->refresh();
@@ -175,7 +173,7 @@ test('a 304 is unchanged without calling the extractor', function () {
 });
 
 test('a 304 on a never-checked link marks it ok', function () {
-    Http::fake([HEALTH_URL => Http::response('', 304)]);
+    Http::fake(['https://example.com/article' => Http::response('', 304)]);
 
     runHealthCheck($this->link);
 
@@ -183,7 +181,7 @@ test('a 304 on a never-checked link marks it ok', function () {
 });
 
 test('the conditional headers are only sent when the link has validators', function () {
-    Http::fake([HEALTH_URL => Http::response('', 200)]);
+    Http::fake(['https://example.com/article' => Http::response('', 200)]);
 
     runHealthCheck($this->link);
 
@@ -195,7 +193,7 @@ test('the conditional headers are only sent when the link has validators', funct
 test('a 301 chain to another host is redirected, stores redirect_url and extracts from the final url', function () {
     $link = givenSnapshot($this->link, healthArticle('old-home'));
     Http::fake([
-        HEALTH_URL => Http::response('', 301, ['Location' => 'https://www.example.com/article']),
+        'https://example.com/article' => Http::response('', 301, ['Location' => 'https://www.example.com/article']),
         'https://www.example.com/article' => Http::response('', 308, ['Location' => 'https://new-home.test/article']),
         'https://new-home.test/article' => Http::response('', 200),
     ]);
@@ -206,7 +204,7 @@ test('a 301 chain to another host is redirected, stores redirect_url and extract
 
     expect($link->health_status)->toBe(HealthStatus::Redirected)
         ->and($link->redirect_url)->toBe('https://new-home.test/article')
-        ->and($link->link)->toBe(HEALTH_URL)
+        ->and($link->link)->toBe('https://example.com/article')
         ->and(FakeExtractor::$calls)->toBe(['https://new-home.test/article'])
         ->and($link->latestSnapshot->content_text)->toBe(healthArticle('new-home'))
         ->and(LinkSnapshot::query()->count())->toBe(2);
@@ -216,7 +214,7 @@ test('a redirected link with changed content is recorded rather than superseded'
     $link = givenSnapshot($this->link, healthArticle('first'));
     Queue::fake();
     Http::fake([
-        HEALTH_URL => Http::response('', 301, ['Location' => 'https://moved.test/article']),
+        'https://example.com/article' => Http::response('', 301, ['Location' => 'https://moved.test/article']),
         'https://moved.test/article' => Http::response('', 200),
     ]);
     FakeExtractor::respondWith('https://moved.test/*', ExtractionResult::ok('fake', healthArticle('second')));
@@ -233,7 +231,7 @@ test('a redirected link with changed content is recorded rather than superseded'
 
 test('a relative Location is resolved against the current url', function () {
     Http::fake([
-        HEALTH_URL => Http::response('', 301, ['Location' => '/moved-here']),
+        'https://example.com/article' => Http::response('', 301, ['Location' => '/moved-here']),
         'https://example.com/moved-here' => Http::response('', 200),
     ]);
 
@@ -245,7 +243,7 @@ test('a relative Location is resolved against the current url', function () {
 
 test('a 302 to another host stays ok', function () {
     Http::fake([
-        HEALTH_URL => Http::response('', 302, ['Location' => 'https://elsewhere.test/login']),
+        'https://example.com/article' => Http::response('', 302, ['Location' => 'https://elsewhere.test/login']),
         'https://elsewhere.test/login' => Http::response('', 200),
     ]);
 
@@ -258,7 +256,7 @@ test('a 302 to another host stays ok', function () {
 
 test('a redirect hop to a private address is never requested and counts as an error', function () {
     Http::fake([
-        HEALTH_URL => Http::response('', 302, ['Location' => 'http://10.0.0.5/internal']),
+        'https://example.com/article' => Http::response('', 302, ['Location' => 'http://10.0.0.5/internal']),
     ]);
 
     runHealthCheck($this->link);
@@ -301,7 +299,7 @@ test('more than five redirect hops is an error', function () {
 
 test('one 404 leaves the status ok, counts one failure and retries in a day', function () {
     $link = givenSnapshot($this->link, healthArticle('page'));
-    Http::fake([HEALTH_URL => Http::response('', 404)]);
+    Http::fake(['https://example.com/article' => Http::response('', 404)]);
 
     runHealthCheck($link);
     $link->refresh();
@@ -315,7 +313,7 @@ test('one 404 leaves the status ok, counts one failure and retries in a day', fu
 
 test('a third consecutive 404 marks the link gone and schedules it at the max interval', function () {
     $link = givenSnapshot($this->link, healthArticle('page'));
-    Http::fake([HEALTH_URL => Http::response('', 404)]);
+    Http::fake(['https://example.com/article' => Http::response('', 404)]);
 
     runHealthCheck($link);
     runHealthCheck($link->fresh());
@@ -330,12 +328,12 @@ test('a third consecutive 404 marks the link gone and schedules it at the max in
 test('404, 404 then 200 resets the failure count', function () {
     $link = givenSnapshot($this->link, healthArticle('flaky'));
     Http::fake([
-        HEALTH_URL => Http::sequence()
+        'https://example.com/article' => Http::sequence()
             ->push('', 404)
             ->push('', 404)
             ->push('', 200),
     ]);
-    FakeExtractor::respondWith(HEALTH_URL, ExtractionResult::ok('fake', healthArticle('flaky')));
+    FakeExtractor::respondWith('https://example.com/article', ExtractionResult::ok('fake', healthArticle('flaky')));
 
     runHealthCheck($link);
     runHealthCheck($link->fresh());
@@ -350,7 +348,7 @@ test('404, 404 then 200 resets the failure count', function () {
 });
 
 test('three 503s mark the link error and keep retrying daily', function () {
-    Http::fake([HEALTH_URL => Http::response('', 503)]);
+    Http::fake(['https://example.com/article' => Http::response('', 503)]);
 
     runHealthCheck($this->link);
     runHealthCheck($this->link->fresh());
@@ -363,7 +361,7 @@ test('three 503s mark the link error and keep retrying daily', function () {
 });
 
 test('a connection failure counts as an error', function () {
-    Http::fake([HEALTH_URL => Http::failedConnection()]);
+    Http::fake(['https://example.com/article' => Http::failedConnection()]);
 
     runHealthCheck($this->link);
     $link = $this->link->fresh();
@@ -376,8 +374,8 @@ test('a connection failure counts as an error', function () {
 test('a failed extraction after a 200 counts as an error and touches no snapshot', function () {
     $link = givenSnapshot($this->link, healthArticle('kept'));
     $latestId = $link->latest_snapshot_id;
-    Http::fake([HEALTH_URL => Http::response('', 200)]);
-    FakeExtractor::respondWith(HEALTH_URL, ExtractionResult::failure(ExtractionStatus::Failed, 'fake', 'Unable to extract'));
+    Http::fake(['https://example.com/article' => Http::response('', 200)]);
+    FakeExtractor::respondWith('https://example.com/article', ExtractionResult::failure(ExtractionStatus::Failed, 'fake', 'Unable to extract'));
 
     runHealthCheck($link);
     $link->refresh();
@@ -391,8 +389,8 @@ test('a failed extraction after a 200 counts as an error and touches no snapshot
 test('a soft-404 title marks the link suspect and leaves the latest snapshot alone', function () {
     $link = givenSnapshot($this->link, healthArticle('real'));
     $latestId = $link->latest_snapshot_id;
-    Http::fake([HEALTH_URL => Http::response('', 200)]);
-    FakeExtractor::respondWith(HEALTH_URL, ExtractionResult::ok('fake', healthArticle('other'), ['title' => 'Page Not Found']));
+    Http::fake(['https://example.com/article' => Http::response('', 200)]);
+    FakeExtractor::respondWith('https://example.com/article', ExtractionResult::ok('fake', healthArticle('other'), ['title' => 'Page Not Found']));
 
     runHealthCheck($link);
     $link->refresh();
@@ -407,8 +405,8 @@ test('a soft-404 title marks the link suspect and leaves the latest snapshot alo
 
 test('a collapsed word count marks the link suspect', function () {
     $link = givenSnapshot($this->link, healthArticle('long', 1000));
-    Http::fake([HEALTH_URL => Http::response('', 200)]);
-    FakeExtractor::respondWith(HEALTH_URL, ExtractionResult::ok('fake', healthArticle('short', 100), ['title' => 'Still here']));
+    Http::fake(['https://example.com/article' => Http::response('', 200)]);
+    FakeExtractor::respondWith('https://example.com/article', ExtractionResult::ok('fake', healthArticle('short', 100), ['title' => 'Still here']));
 
     runHealthCheck($link);
     $link->refresh();
@@ -423,7 +421,7 @@ test('a gone link keeps every snapshot and its latest snapshot', function () {
     $link->refresh();
     $snapshotIds = $link->snapshots()->pluck('id')->sort()->values()->all();
     $latestId = $link->latest_snapshot_id;
-    Http::fake([HEALTH_URL => Http::response('', 410)]);
+    Http::fake(['https://example.com/article' => Http::response('', 410)]);
 
     runHealthCheck($link);
     runHealthCheck($link->fresh());
@@ -450,11 +448,11 @@ test('a trashed link is skipped', function () {
 
 test('repeated real changes keep only the configured five snapshots', function () {
     $link = givenSnapshot($this->link, healthArticle('rev0'));
-    Http::fake([HEALTH_URL => Http::response('', 200)]);
+    Http::fake(['https://example.com/article' => Http::response('', 200)]);
 
     foreach (range(1, 6) as $revision) {
         $this->travel(1)->days();
-        FakeExtractor::respondWith(HEALTH_URL, ExtractionResult::ok('fake', healthArticle("rev{$revision}")));
+        FakeExtractor::respondWith('https://example.com/article', ExtractionResult::ok('fake', healthArticle("rev{$revision}")));
 
         runHealthCheck($link->fresh());
     }
@@ -469,8 +467,8 @@ test('a url edited mid-check writes only last_checked_at and leaves the schedule
     $link = givenSnapshot($this->link, healthArticle('before-edit'), ['consecutive_failures' => 2]);
     $scheduledFor = $link->next_check_at;
     Queue::fake();
-    Http::fake([HEALTH_URL => Http::response('', 200)]);
-    FakeExtractor::respondWith(HEALTH_URL, function (string $url) use ($link): ExtractionResult {
+    Http::fake(['https://example.com/article' => Http::response('', 200)]);
+    FakeExtractor::respondWith('https://example.com/article', function (string $url) use ($link): ExtractionResult {
         Link::query()->whereKey($link->id)->update(['link' => 'https://example.com/edited']);
 
         return ExtractionResult::ok('fake', healthArticle('stale'));
@@ -487,4 +485,101 @@ test('a url edited mid-check writes only last_checked_at and leaves the schedule
         ->and(LinkSnapshot::query()->count())->toBe(1);
 
     Queue::assertPushed(ExtractContentJob::class);
+});
+
+test('a 403 probe is unknown: status and failures are untouched and the interval still grows', function () {
+    $link = givenSnapshot($this->link, healthArticle('guarded'), ['consecutive_failures' => 1]);
+    Http::fake(['https://example.com/article' => Http::response('', 403)]);
+
+    runHealthCheck($link);
+    $link->refresh();
+
+    expect($link->health_status)->toBe(HealthStatus::Ok)
+        ->and($link->consecutive_failures)->toBe(1)
+        ->and($link->check_interval_days)->toBe(14)
+        ->and($link->last_checked_at->equalTo(now()))->toBeTrue()
+        ->and(FakeExtractor::$calls)->toBe([]);
+});
+
+test('a blocked extraction after a 200 is unknown: status and failures are untouched', function () {
+    $link = givenSnapshot($this->link, healthArticle('bot-wall'), ['consecutive_failures' => 2]);
+    Http::fake(['https://example.com/article' => Http::response('', 200)]);
+    FakeExtractor::respondWith('https://example.com/article', ExtractionResult::failure(ExtractionStatus::Blocked, 'fake', 'Blocked with HTTP 403'));
+
+    runHealthCheck($link);
+    $link->refresh();
+
+    expect($link->health_status)->toBe(HealthStatus::Ok)
+        ->and($link->consecutive_failures)->toBe(2)
+        ->and($link->check_interval_days)->toBe(14)
+        ->and($link->last_checked_at->equalTo(now()))->toBeTrue()
+        ->and(LinkSnapshot::query()->count())->toBe(1);
+});
+
+test('an unsupported extraction after a 200 is a live page: ok, failures reset and no snapshot', function () {
+    $link = givenSnapshot($this->link, healthArticle('pdf'), ['consecutive_failures' => 2, 'health_status' => HealthStatus::Error]);
+    Http::fake(['https://example.com/article' => Http::response('', 200)]);
+    FakeExtractor::respondWith('https://example.com/article', ExtractionResult::failure(ExtractionStatus::Unsupported, 'fake', 'Unsupported content type: application/pdf'));
+
+    runHealthCheck($link);
+    $link->refresh();
+
+    expect($link->health_status)->toBe(HealthStatus::Ok)
+        ->and($link->consecutive_failures)->toBe(0)
+        ->and($link->check_interval_days)->toBe(14)
+        ->and(LinkSnapshot::query()->count())->toBe(1);
+});
+
+test('a 301 to www followed by a 302 to another host stays ok', function () {
+    Http::fake([
+        'https://example.com/article' => Http::response('', 301, ['Location' => 'https://www.example.com/article']),
+        'https://www.example.com/article' => Http::response('', 302, ['Location' => 'https://sso.provider.test/login']),
+        'https://sso.provider.test/login' => Http::response('', 200),
+    ]);
+
+    runHealthCheck($this->link);
+    $link = $this->link->fresh();
+
+    expect($link->health_status)->toBe(HealthStatus::Ok)
+        ->and($link->redirect_url)->toBeNull();
+});
+
+test('a gone link stays gone when a later check only errors', function () {
+    $link = givenSnapshot($this->link, healthArticle('dead'), ['health_status' => HealthStatus::Gone, 'consecutive_failures' => 3]);
+    Http::fake(['https://example.com/article' => Http::response('', 503)]);
+
+    runHealthCheck($link);
+    $link->refresh();
+
+    expect($link->health_status)->toBe(HealthStatus::Gone)
+        ->and($link->consecutive_failures)->toBe(4)
+        ->and($link->next_check_at->equalTo(now()->addDays(90)))->toBeTrue();
+});
+
+test('a probe that runs past its total deadline across hops is an error', function () {
+    config(['link_health.probe_deadline_seconds' => 30]);
+
+    Http::fake(function (Request $request) {
+        $this->travel(20)->seconds();
+        $hop = (int) str_replace('https://example.com/hop', '', $request->url());
+
+        return Http::response('', 302, ['Location' => 'https://example.com/hop'.($hop + 1)]);
+    });
+    $this->link->forceFill(['link' => 'https://example.com/hop0'])->save();
+
+    runHealthCheck($this->link);
+
+    Http::assertSentCount(2);
+
+    expect($this->link->fresh()->consecutive_failures)->toBe(1)
+        ->and(FakeExtractor::$calls)->toBe([]);
+});
+
+test('a malformed Location header is an error, not a crash', function () {
+    Http::fake(['https://example.com/article' => Http::response('', 301, ['Location' => 'http://'])]);
+
+    runHealthCheck($this->link);
+
+    expect($this->link->fresh()->consecutive_failures)->toBe(1)
+        ->and(FakeExtractor::$calls)->toBe([]);
 });
