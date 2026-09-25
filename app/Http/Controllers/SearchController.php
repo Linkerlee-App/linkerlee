@@ -33,7 +33,7 @@ class SearchController extends Controller
             })
             ->registerModel(Tag::class, function (ModelSearchAspect $modelSearchAspect) {
                 $modelSearchAspect
-                    ->addSearchableAttribute('name')
+                    ->addSearchableAttribute('name->'.Tag::getLocale())
                     ->filterByCurrentUser();
             })
             ->search($searchString)

@@ -18,6 +18,7 @@ FROM php:${PHP_VERSION}-fpm-alpine AS base
 RUN apk add --no-cache \
         fcgi \
         icu-libs \
+        libpq \
         libzip \
         su-exec \
         tzdata \
@@ -25,17 +26,16 @@ RUN apk add --no-cache \
         $PHPIZE_DEPS \
         icu-dev \
         libzip-dev \
+        postgresql-dev \
     && docker-php-ext-install -j"$(nproc)" \
         bcmath \
         intl \
         opcache \
         pcntl \
-        pdo_mysql \
+        pdo_pgsql \
         zip \
     && apk del .build-deps \
     && rm -rf /tmp/*
-
-# pdo_sqlite and mbstring ship enabled in the official image, so SQLite works too.
 
 ENV COMPOSER_ALLOW_SUPERUSER=1 \
     COMPOSER_NO_INTERACTION=1

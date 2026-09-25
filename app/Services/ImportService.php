@@ -212,6 +212,7 @@ class ImportService
             $link = Link::withTrashed()
                 ->where('link', $url)
                 ->where('user_id', $user->id)
+                ->oldest('id')
                 ->first();
 
             if (! $link) {

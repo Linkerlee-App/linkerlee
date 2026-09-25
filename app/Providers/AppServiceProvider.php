@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -36,6 +37,20 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->configureDefaults();
+        $this->configureRoutePatterns();
+    }
+
+    /**
+     * Keep non-numeric ids away from integer columns. Postgres rejects a
+     * comparison like `id = 'abc'` with an error, so without these a mistyped
+     * URL is a 500 rather than a 404. Eighteen digits keeps every id inside bigint.
+     */
+    protected function configureRoutePatterns(): void
+    {
+        Route::patterns(array_fill_keys(
+            ['link', 'linkId', 'group', 'tag', 'publicLink', 'tokenId'],
+            '[1-9][0-9]{0,17}',
+        ));
     }
 
     /**

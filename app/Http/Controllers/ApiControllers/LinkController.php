@@ -84,6 +84,7 @@ class LinkController extends Controller
         $link = Link::with('tags')
             ->where('user_id', Auth::id())
             ->where('link', $validated['link'])
+            ->oldest('id')
             ->first();
 
         if ($link === null) {

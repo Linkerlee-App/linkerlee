@@ -78,12 +78,12 @@ fi
 # Wait for the database. Compose healthchecks cover the common case; this
 # covers the rest (external database, slow first-run initialisation).
 # ---------------------------------------------------------------------------
-if [ "${DB_CONNECTION:-mysql}" != "sqlite" ]; then
+if [ "${DB_CONNECTION:-pgsql}" != "sqlite" ]; then
     attempt=0
     until as_www php artisan db:show --quiet >/dev/null 2>&1; do
         attempt=$((attempt + 1))
         if [ "$attempt" -ge 30 ]; then
-            echo "[linkerlee] database at ${DB_HOST:-mysql}:${DB_PORT:-3306} never became reachable" >&2
+            echo "[linkerlee] database at ${DB_HOST:-postgres}:${DB_PORT:-5432} never became reachable" >&2
             exit 1
         fi
         echo "[linkerlee] waiting for the database (${attempt}/30)..."

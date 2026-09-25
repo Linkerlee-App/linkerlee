@@ -169,7 +169,7 @@ Looks up one of the authenticated user's links by exact URL. This is how a clien
 
 | Field  | Type   | Required | Notes |
 |--------|--------|----------|-------|
-| `link` | string | yes      | Must be a valid URL. Matched exactly — a trailing slash or differing query string will not match. |
+| `link` | string | yes      | Must be a valid URL. Matched exactly and case-sensitively — a trailing slash, differing query string or differing letter case will not match. |
 
 **Example request**
 
