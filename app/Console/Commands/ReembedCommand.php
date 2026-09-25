@@ -46,6 +46,12 @@ class ReembedCommand extends Command
 
         $columnDimensions = $this->columnDimensions();
 
+        if ($columnDimensions === null) {
+            $this->error('content_chunks.embedding column not found — has the content_chunks migration run?');
+
+            return Command::FAILURE;
+        }
+
         if ($columnDimensions !== $dimensions) {
             $this->refuse($columnDimensions, $dimensions);
 
@@ -73,16 +79,18 @@ class ReembedCommand extends Command
     }
 
     /**
-     * `content_chunks.embedding`'s declared vector dimension. For a
-     * pgvector column, `atttypmod` equals the dimension directly.
+     * `content_chunks.embedding`'s declared vector dimension, or null when
+     * the table or column can't be found (for instance, the content_chunks
+     * migration hasn't run yet). For a pgvector column, `atttypmod` equals
+     * the dimension directly.
      */
-    private function columnDimensions(): int
+    private function columnDimensions(): ?int
     {
         $row = DB::selectOne(
             "select atttypmod from pg_attribute where attrelid = 'content_chunks'::regclass and attname = 'embedding'"
         );
 
-        return (int) $row->atttypmod;
+        return $row === null ? null : (int) $row->atttypmod;
     }
 
     /**
@@ -95,12 +103,7 @@ class ReembedCommand extends Command
     private function snapshotsNeedingEmbedding(string $target): Builder
     {
         return LinkSnapshot::query()
-            ->whereIn('id', function ($query): void {
-                $query->select('latest_snapshot_id')
-                    ->from('links')
-                    ->whereNotNull('latest_snapshot_id')
-                    ->whereNull('deleted_at');
-            })
+            ->current()
             ->whereExists(function ($query) use ($target): void {
                 $query->select(DB::raw(1))
                     ->from('content_chunks')

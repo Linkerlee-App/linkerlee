@@ -11,6 +11,7 @@ use App\Models\LinkSnapshot;
 use App\Models\User;
 use App\Scraping\Drivers\FakeExtractor;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
@@ -44,6 +45,29 @@ function makeChunkFor(LinkSnapshot $snapshot, array $attributes = []): ContentCh
 {
     return ContentChunk::factory()->create(['link_snapshot_id' => $snapshot->id, 'link_id' => $snapshot->link_id, ...$attributes]);
 }
+
+// ---------------------------------------------------------------------
+// LinkSnapshot::scopeCurrent()
+// ---------------------------------------------------------------------
+
+test('the current scope excludes a superseded snapshot and includes the latest one', function () {
+    $link = Link::factory()->create(['user_id' => User::factory()]);
+    $superseded = LinkSnapshot::factory()->create(['link_id' => $link->id]);
+    $latest = LinkSnapshot::factory()->create(['link_id' => $link->id]);
+    $link->forceFill(['latest_snapshot_id' => $latest->id])->save();
+
+    $current = LinkSnapshot::query()->current()->pluck('id')->all();
+
+    expect($current)->toContain($latest->id)
+        ->and($current)->not->toContain($superseded->id);
+});
+
+test('the current scope excludes the latest snapshot of a trashed link', function () {
+    $snapshot = makeCurrentSnapshot();
+    Link::find($snapshot->link_id)->delete();
+
+    expect(LinkSnapshot::query()->current()->pluck('id')->all())->not->toContain($snapshot->id);
+});
 
 // ---------------------------------------------------------------------
 // linkerlee:resummarize
@@ -102,6 +126,21 @@ test('resummarize --all forces every current snapshot, even one already matching
         ->expectsOutputToContain('Dispatched 1 snapshot to the enrichment queue.');
 
     Queue::assertPushedOn('enrichment', SummarizeSnapshotJob::class, fn (SummarizeSnapshotJob $job): bool => $job->snapshot->is($snapshot) && $job->force === true);
+});
+
+test('resummarize --all on a snapshot with no chunks yet chains a forced Summarize into Chunk and Embed', function () {
+    Bus::fake();
+
+    $snapshot = makeCurrentSnapshot(['summary' => 'Existing summary', 'summary_model' => 'fake-summary']);
+
+    $this->artisan('linkerlee:resummarize', ['--all' => true])->assertSuccessful();
+
+    Bus::assertChained([
+        SummarizeSnapshotJob::class,
+        ChunkSnapshotJob::class,
+        EmbedChunksJob::class,
+    ]);
+    Bus::assertDispatched(SummarizeSnapshotJob::class, fn (SummarizeSnapshotJob $job): bool => $job->snapshot->is($snapshot) && $job->force === true);
 });
 
 test('resummarize --model overrides the target model and is passed through to the job', function () {
@@ -290,6 +329,19 @@ test('reembed refuses and prints a migration when the column dimension does not 
     $this->artisan('linkerlee:reembed')
         ->assertExitCode(1)
         ->expectsOutputToContain('vector(1024)');
+
+    Queue::assertNothingPushed();
+});
+
+test('reembed guards a missing embedding column with a clear error instead of a raw exception', function () {
+    Queue::fake();
+    DB::statement('alter table content_chunks drop column embedding');
+
+    makeCurrentSnapshot();
+
+    $this->artisan('linkerlee:reembed')
+        ->assertExitCode(1)
+        ->expectsOutputToContain('content_chunks.embedding column not found');
 
     Queue::assertNothingPushed();
 });

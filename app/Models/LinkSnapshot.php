@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\LinkSnapshotFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -67,5 +68,26 @@ class LinkSnapshot extends Model
         return $link !== null
             && ! $link->trashed()
             && $link->latest_snapshot_id === $this->id;
+    }
+
+    /**
+     * Scopes a query to current snapshots: those referenced by
+     * `links.latest_snapshot_id` on a non-trashed link. The query-side
+     * counterpart to {@see self::isCurrent()}, which checks one
+     * already-loaded instance instead of filtering a query; the rebuild
+     * commands (`linkerlee:resummarize`, `linkerlee:rechunk`,
+     * `linkerlee:reembed`) all scope their work this way.
+     *
+     * @param  Builder<LinkSnapshot>  $query
+     * @return Builder<LinkSnapshot>
+     */
+    public function scopeCurrent(Builder $query): Builder
+    {
+        return $query->whereIn('id', function ($query): void {
+            $query->select('latest_snapshot_id')
+                ->from('links')
+                ->whereNotNull('latest_snapshot_id')
+                ->whereNull('deleted_at');
+        });
     }
 }

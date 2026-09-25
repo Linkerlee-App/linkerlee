@@ -48,18 +48,19 @@ class ResummarizeCommand extends Command
     {
         $model = $this->option('model');
         $target = $summaries->provider($model)->model();
-        $force = (bool) $this->option('all');
+        $includeAll = (bool) $this->option('all');
         $sync = (bool) $this->option('sync');
 
         $dispatched = 0;
 
-        $this->currentSnapshots()
-            ->when(! $force, fn (Builder $query): Builder => $query->where(
+        LinkSnapshot::query()
+            ->current()
+            ->when(! $includeAll, fn (Builder $query): Builder => $query->where(
                 fn (Builder $query): Builder => $query->whereNull('summary')->orWhere('summary_model', '!=', $target)
             ))
-            ->chunkById(200, function ($snapshots) use (&$dispatched, $model, $force, $sync): void {
+            ->chunkById(200, function ($snapshots) use (&$dispatched, $model, $includeAll, $sync): void {
                 foreach ($snapshots as $snapshot) {
-                    $this->resummarizeOne($snapshot, $model, $force, $sync);
+                    $this->resummarizeOne($snapshot, $model, $includeAll, $sync);
                     $dispatched++;
                 }
             });
@@ -75,41 +76,29 @@ class ResummarizeCommand extends Command
      * A snapshot that already has chunks only needs re-summarizing. One
      * with none yet gets the whole chain, so a snapshot stuck mid-pipeline
      * recovers fully instead of staying chunkless forever.
+     *
+     * `$includeAll` (this run's `--all`) is passed through as the job's own
+     * `force`, so a snapshot already matching the target model is
+     * re-summarized anyway instead of being skipped by the job itself.
      */
-    private function resummarizeOne(LinkSnapshot $snapshot, ?string $model, bool $force, bool $sync): void
+    private function resummarizeOne(LinkSnapshot $snapshot, ?string $model, bool $includeAll, bool $sync): void
     {
         $hasChunks = ContentChunk::query()->where('link_snapshot_id', $snapshot->id)->exists();
 
         if ($hasChunks) {
             $sync
-                ? SummarizeSnapshotJob::dispatchSync($snapshot, $model, $force)
-                : SummarizeSnapshotJob::dispatch($snapshot, $model, $force);
+                ? SummarizeSnapshotJob::dispatchSync($snapshot, $model, force: $includeAll)
+                : SummarizeSnapshotJob::dispatch($snapshot, $model, force: $includeAll);
 
             return;
         }
 
         $chain = Bus::chain([
-            new SummarizeSnapshotJob($snapshot, $model, $force),
+            new SummarizeSnapshotJob($snapshot, $model, force: $includeAll),
             new ChunkSnapshotJob($snapshot),
             new EmbedChunksJob($snapshot),
         ]);
 
         $sync ? $chain->onConnection('sync')->dispatch() : $chain->onQueue('enrichment')->dispatch();
-    }
-
-    /**
-     * Snapshots referenced by `links.latest_snapshot_id` on a non-trashed
-     * link.
-     *
-     * @return Builder<LinkSnapshot>
-     */
-    private function currentSnapshots(): Builder
-    {
-        return LinkSnapshot::query()->whereIn('id', function ($query): void {
-            $query->select('latest_snapshot_id')
-                ->from('links')
-                ->whereNotNull('latest_snapshot_id')
-                ->whereNull('deleted_at');
-        });
     }
 }

@@ -6,7 +6,6 @@ use App\Jobs\ChunkSnapshotJob;
 use App\Jobs\EmbedChunksJob;
 use App\Models\LinkSnapshot;
 use Illuminate\Console\Command;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Bus;
 
 /**
@@ -42,7 +41,7 @@ class RechunkCommand extends Command
 
         $dispatched = 0;
 
-        $this->currentSnapshots()->chunkById(200, function ($snapshots) use (&$dispatched, $sync): void {
+        LinkSnapshot::query()->current()->chunkById(200, function ($snapshots) use (&$dispatched, $sync): void {
             foreach ($snapshots as $snapshot) {
                 $chain = Bus::chain([
                     new ChunkSnapshotJob($snapshot),
@@ -60,21 +59,5 @@ class RechunkCommand extends Command
             : sprintf('Dispatched %d %s to the enrichment queue.', $dispatched, $dispatched === 1 ? 'snapshot' : 'snapshots'));
 
         return Command::SUCCESS;
-    }
-
-    /**
-     * Snapshots referenced by `links.latest_snapshot_id` on a non-trashed
-     * link.
-     *
-     * @return Builder<LinkSnapshot>
-     */
-    private function currentSnapshots(): Builder
-    {
-        return LinkSnapshot::query()->whereIn('id', function ($query): void {
-            $query->select('latest_snapshot_id')
-                ->from('links')
-                ->whereNotNull('latest_snapshot_id')
-                ->whereNull('deleted_at');
-        });
     }
 }
