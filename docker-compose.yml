@@ -50,7 +50,7 @@ services:
     image: linkerlee/app:latest
     restart: unless-stopped
     env_file: .env
-    command: ["php", "artisan", "queue:work", "--queue=default,ingestion,enrichment,health", "--tries=3", "--timeout=90", "--max-time=3600"]
+    command: ["php", "artisan", "queue:work", "--queue=default,ingestion,health,enrichment", "--tries=3", "--timeout=90", "--max-time=3600"]
     volumes:
       - storage:/var/www/html/storage
     depends_on:
@@ -74,11 +74,11 @@ services:
       app:
         condition: service_healthy
 
-  # pgvector/pgvector:pg17 is postgres:17 plus the pgvector extension, which
+  # pgvector/pgvector:0.8.0-pg17 is postgres:17 plus the pgvector extension, which
   # content_chunks.embedding needs. Do not swap this back to a plain
   # postgres image.
   postgres:
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:0.8.0-pg17
     restart: unless-stopped
     environment:
       POSTGRES_DB: "${DB_DATABASE:-linkerlee}"
@@ -93,6 +93,18 @@ services:
       retries: 12
       start_period: 30s
 
+  # Optional: a local embedding server for content enrichment. Only started
+  # with `docker compose --profile enrichment up`; the app never depends on
+  # it. Point OLLAMA_URL at http://ollama:11434, then pull the model once:
+  # `docker compose exec ollama ollama pull nomic-embed-text`.
+  ollama:
+    image: ollama/ollama
+    profiles: ["enrichment"]
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+
 volumes:
   storage:
   postgres:
+  ollama:

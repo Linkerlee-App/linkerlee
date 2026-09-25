@@ -189,10 +189,10 @@ Jobs run on four queues: `default`, `ingestion` (content extraction), `enrichmen
 
 ```bash
 # Process queue jobs
-php artisan queue:work --queue=default,ingestion,enrichment,health
+php artisan queue:work --queue=default,ingestion,health,enrichment
 
 # Listen for queue jobs (auto-reloads on code changes)
-php artisan queue:listen --queue=default,ingestion,enrichment,health --tries=1
+php artisan queue:listen --queue=default,ingestion,health,enrichment --tries=1
 
 # Backfill content extraction for links saved before the worker was wired up
 php artisan linkerlee:extract
