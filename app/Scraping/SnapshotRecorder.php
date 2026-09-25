@@ -8,6 +8,7 @@ use App\Health\ContentSimilarity;
 use App\Jobs\ExtractContentJob;
 use App\Models\Link;
 use App\Models\LinkSnapshot;
+use Carbon\CarbonInterface;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -119,7 +120,9 @@ class SnapshotRecorder
      * the current attributes and its loaded relations reloaded.
      *
      * A link's very first snapshot also schedules its first health check,
-     * `link_health.initial_interval_days` out.
+     * `link_health.initial_interval_days` out. So does a failed extraction
+     * on a link that has no check scheduled yet: a PDF, a page dead at save
+     * or a bot wall never gets a first snapshot, but still needs checking.
      */
     private function recordLocked(Link $link, ExtractionResult $result, string $extractedUrl, bool $compareForNoise): RecordOutcome
     {
@@ -143,6 +146,7 @@ class SnapshotRecorder
             $link->forceFill([
                 'extraction_status' => $result->status,
                 'extraction_error' => self::truncateError($result->error),
+                ...($link->next_check_at === null ? self::firstCheck(now()) : []),
             ])->save();
 
             return RecordOutcome::Failed;
@@ -190,10 +194,7 @@ class SnapshotRecorder
                 'extracted_at' => $fetchedAt,
                 'etag' => self::capString($result->etag),
                 'last_modified' => self::capString($result->lastModified),
-                ...($isFirstSnapshot ? [
-                    'next_check_at' => $fetchedAt->copy()->addDays((int) config('link_health.initial_interval_days')),
-                    'check_interval_days' => (int) config('link_health.initial_interval_days'),
-                ] : ['content_changed_at' => $fetchedAt]),
+                ...($isFirstSnapshot ? self::firstCheck($fetchedAt) : ['content_changed_at' => $fetchedAt]),
             ])->save();
 
             $link->setRelation('latestSnapshot', $snapshot);
@@ -221,6 +222,22 @@ class SnapshotRecorder
 
         return $this->similarity->jaccard((string) $result->contentText, (string) $latest->content_text)
             >= (float) config('link_health.noise_similarity');
+    }
+
+    /**
+     * The schedule of a link's first health check,
+     * `link_health.initial_interval_days` after the given moment.
+     *
+     * @return array{next_check_at: CarbonInterface, check_interval_days: int}
+     */
+    private static function firstCheck(CarbonInterface $from): array
+    {
+        $initialIntervalDays = (int) config('link_health.initial_interval_days');
+
+        return [
+            'next_check_at' => $from->copy()->addDays($initialIntervalDays),
+            'check_interval_days' => $initialIntervalDays,
+        ];
     }
 
     /**

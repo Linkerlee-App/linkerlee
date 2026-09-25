@@ -327,6 +327,34 @@ test('a link\'s first snapshot schedules its next health check', function () {
         ->and($link->next_check_at->equalTo(now()->addDays(config('link_health.initial_interval_days'))))->toBeTrue();
 });
 
+test('a first extraction that is not ok still schedules the first health check', function (ExtractionStatus $status) {
+    $this->travelTo(now()->startOfSecond());
+
+    $outcome = $this->recorder->record($this->link, ExtractionResult::failure($status, 'fake', 'No text'), $this->link->link);
+    $link = $this->link->fresh();
+    $initialDays = config('link_health.initial_interval_days');
+
+    expect($outcome)->toBe(RecordOutcome::Failed)
+        ->and($link->extraction_status)->toBe($status)
+        ->and($link->check_interval_days)->toBe($initialDays)
+        ->and($link->next_check_at->equalTo(now()->addDays($initialDays)))->toBeTrue();
+})->with([
+    'unsupported (a PDF)' => ExtractionStatus::Unsupported,
+    'failed (dead at save)' => ExtractionStatus::Failed,
+    'blocked (a bot wall)' => ExtractionStatus::Blocked,
+]);
+
+test('a failed extraction does not reschedule an already-scheduled health check', function () {
+    $scheduledFor = now()->startOfSecond()->addDays(2);
+    $this->link->forceFill(['next_check_at' => $scheduledFor, 'check_interval_days' => 2])->save();
+
+    $this->recorder->record($this->link, ExtractionResult::failure(ExtractionStatus::Failed, 'fake', 'boom'), $this->link->link);
+    $link = $this->link->fresh();
+
+    expect($link->check_interval_days)->toBe(2)
+        ->and($link->next_check_at->equalTo($scheduledFor))->toBeTrue();
+});
+
 test('a later snapshot on the same link does not reschedule an already-scheduled health check', function () {
     $this->recorder->record($this->link, okExtraction('First body'), $this->link->link);
 
