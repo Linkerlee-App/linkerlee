@@ -23,4 +23,11 @@ enum RecordOutcome
      * existing snapshot was left alone.
      */
     case Failed;
+
+    /**
+     * The link's URL changed after this result was extracted, so the result
+     * describes a page the link no longer points at. Nothing was written and
+     * a fresh extraction was queued.
+     */
+    case Superseded;
 }

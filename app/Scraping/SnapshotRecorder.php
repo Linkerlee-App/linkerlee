@@ -4,6 +4,7 @@ namespace App\Scraping;
 
 use App\Enums\ExtractionStatus;
 use App\Events\LinkSnapshotCreated;
+use App\Jobs\ExtractContentJob;
 use App\Models\Link;
 use App\Models\LinkSnapshot;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -45,14 +46,19 @@ class SnapshotRecorder
      * refreshes `extracted_at` and the validators. New text becomes a snapshot,
      * and {@see LinkSnapshotCreated} fires once it is committed.
      *
+     * When the link's URL no longer matches the URL that was extracted (it was
+     * edited while the extraction ran), nothing is written, a fresh
+     * {@see ExtractContentJob} is queued and the outcome is Superseded.
+     *
+     * @param  string  $extractedUrl  The URL the result was extracted from.
      * @param  bool  $compareForNoise  Reserved for the health check. It has no effect yet.
      *
      * @throws LockTimeoutException when another recorder holds the lock for too long
      */
-    public function record(Link $link, ExtractionResult $result, bool $compareForNoise = false): RecordOutcome
+    public function record(Link $link, ExtractionResult $result, string $extractedUrl, bool $compareForNoise = false): RecordOutcome
     {
         return Cache::lock("link-snapshot:{$link->id}", self::LOCK_SECONDS)
-            ->block(self::LOCK_WAIT_SECONDS, fn (): RecordOutcome => $this->recordLocked($link, $result));
+            ->block(self::LOCK_WAIT_SECONDS, fn (): RecordOutcome => $this->recordLocked($link, $result, $extractedUrl));
     }
 
     /**
@@ -93,7 +99,7 @@ class SnapshotRecorder
      * instead of throwing. Like refresh(), the caller's instance ends up with
      * the current attributes and its loaded relations reloaded.
      */
-    private function recordLocked(Link $link, ExtractionResult $result): RecordOutcome
+    private function recordLocked(Link $link, ExtractionResult $result, string $extractedUrl): RecordOutcome
     {
         $fresh = Link::withTrashed()->find($link->getKey());
 
@@ -106,6 +112,12 @@ class SnapshotRecorder
         $link->setRawAttributes($fresh->getAttributes(), true)
             ->setRelations([])
             ->load($loadedRelations);
+
+        if ($link->link !== $extractedUrl) {
+            ExtractContentJob::dispatch($link)->afterCommit();
+
+            return RecordOutcome::Superseded;
+        }
 
         if (! $result->isOk()) {
             $link->forceFill([

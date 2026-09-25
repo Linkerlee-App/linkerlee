@@ -201,3 +201,59 @@ test('dispatching from the controller still runs the extraction job under Refres
 
     expect(FakeExtractor::$calls)->toBe(['https://example.com/refresh-database-check']);
 });
+
+test('restoring a trashed link that was never extracted re-queues extraction', function () {
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $link = Link::factory()->create([
+        'user_id' => $user->id,
+        'extraction_status' => ExtractionStatus::Failed,
+        'extraction_error' => 'A stale error',
+    ]);
+    $link->delete();
+
+    $this->actingAs($user)
+        ->patch(route('links.restore', $link->id))
+        ->assertRedirect(route('links.trashed'));
+
+    $link->refresh();
+
+    expect($link->trashed())->toBeFalse()
+        ->and($link->extraction_status)->toBe(ExtractionStatus::Pending)
+        ->and($link->extraction_error)->toBeNull();
+
+    Queue::assertPushedOn('ingestion', ExtractContentJob::class, fn (ExtractContentJob $job) => $job->link->is($link));
+});
+
+test('restoring a trashed pending link, like an archived import, pushes the job', function () {
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $link = Link::factory()->create([
+        'user_id' => $user->id,
+        'extraction_status' => ExtractionStatus::Pending,
+    ]);
+    $link->delete();
+
+    $this->actingAs($user)->patch(route('links.restore', $link->id));
+
+    Queue::assertPushed(ExtractContentJob::class, fn (ExtractContentJob $job) => $job->link->is($link));
+});
+
+test('restoring a trashed link that was already extracted does not re-queue extraction', function () {
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $link = Link::factory()->create([
+        'user_id' => $user->id,
+        'extraction_status' => ExtractionStatus::Ok,
+    ]);
+    $link->delete();
+
+    $this->actingAs($user)->patch(route('links.restore', $link->id));
+
+    expect($link->fresh()->extraction_status)->toBe(ExtractionStatus::Ok);
+
+    Queue::assertNotPushed(ExtractContentJob::class);
+});

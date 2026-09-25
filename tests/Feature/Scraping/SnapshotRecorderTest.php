@@ -2,6 +2,7 @@
 
 use App\Enums\ExtractionStatus;
 use App\Events\LinkSnapshotCreated;
+use App\Jobs\ExtractContentJob;
 use App\Models\Link;
 use App\Models\LinkSnapshot;
 use App\Models\User;
@@ -12,6 +13,7 @@ use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Sleep;
 
 beforeEach(function () {
@@ -39,7 +41,7 @@ test('an ok result creates a snapshot, points the link at it and fires LinkSnaps
         'lastModified' => 'Wed, 21 Oct 2026 07:28:00 GMT',
         'title' => 'Hello',
         'author' => 'Jane',
-    ]));
+    ]), $this->link->link);
 
     expect($outcome)->toBe(RecordOutcome::Created);
 
@@ -74,12 +76,12 @@ test('an ok result creates a snapshot, points the link at it and fires LinkSnaps
 test('recording the same content twice leaves one snapshot and bumps extracted_at and the etag', function () {
     Event::fake([LinkSnapshotCreated::class]);
 
-    $this->recorder->record($this->link, okExtraction('Same text', ['etag' => '"v1"']));
+    $this->recorder->record($this->link, okExtraction('Same text', ['etag' => '"v1"']), $this->link->link);
     $firstExtractedAt = $this->link->fresh()->extracted_at;
 
     $this->travel(5)->minutes();
 
-    $outcome = $this->recorder->record($this->link, okExtraction('Same text', ['etag' => '"v2"']));
+    $outcome = $this->recorder->record($this->link, okExtraction('Same text', ['etag' => '"v2"']), $this->link->link);
     $link = $this->link->fresh();
 
     expect($outcome)->toBe(RecordOutcome::Unchanged)
@@ -92,12 +94,13 @@ test('recording the same content twice leaves one snapshot and bumps extracted_a
 });
 
 test('a failed result records the status and error and keeps the prior snapshot', function () {
-    $this->recorder->record($this->link, okExtraction('Original text'));
+    $this->recorder->record($this->link, okExtraction('Original text'), $this->link->link);
     $snapshot = LinkSnapshot::query()->sole();
 
     $outcome = $this->recorder->record(
         $this->link,
         ExtractionResult::failure(ExtractionStatus::Blocked, 'fake', 'Host resolves to a private address'),
+        $this->link->link,
     );
     $link = $this->link->fresh();
 
@@ -112,13 +115,14 @@ test('a stored extraction error is capped at 1000 characters', function () {
     $this->recorder->record(
         $this->link,
         ExtractionResult::failure(ExtractionStatus::Failed, 'fake', str_repeat('x', 5000)),
+        $this->link->link,
     );
 
     expect(mb_strlen($this->link->fresh()->extraction_error))->toBe(1000);
 });
 
 test('the extraction error is hidden from serialization', function () {
-    $this->recorder->record($this->link, ExtractionResult::failure(ExtractionStatus::Failed, 'fake', 'boom'));
+    $this->recorder->record($this->link, ExtractionResult::failure(ExtractionStatus::Failed, 'fake', 'boom'), $this->link->link);
 
     expect($this->link->fresh()->toArray())->not->toHaveKey('extraction_error');
 });
@@ -132,7 +136,7 @@ test('a new snapshot beyond the retention limit prunes the oldest ones', functio
         ->sequence(fn ($sequence) => ['fetched_at' => now()->subDays(10 - $sequence->index)])
         ->create();
 
-    $this->recorder->record($this->link, okExtraction('Brand new text'));
+    $this->recorder->record($this->link, okExtraction('Brand new text'), $this->link->link);
     $link = $this->link->fresh();
 
     expect($link->snapshots()->count())->toBe(5)
@@ -180,10 +184,10 @@ test('the lock serializes two recorders with identical content into one snapshot
         }
 
         $held->release();
-        $firstOutcome = $this->recorder->record($first, okExtraction('Identical text'));
+        $firstOutcome = $this->recorder->record($first, okExtraction('Identical text'), $first->link);
     });
 
-    $secondOutcome = $this->recorder->record($second, okExtraction('Identical text'));
+    $secondOutcome = $this->recorder->record($second, okExtraction('Identical text'), $second->link);
 
     expect($firstOutcome)->toBe(RecordOutcome::Created)
         ->and($secondOutcome)->toBe(RecordOutcome::Unchanged)
@@ -195,7 +199,7 @@ test('a recorder gives up when the lock stays held', function () {
 
     expect(Cache::lock("link-snapshot:{$this->link->id}", 30)->get())->toBeTrue();
 
-    expect(fn () => $this->recorder->record($this->link, okExtraction()))->toThrow(LockTimeoutException::class);
+    expect(fn () => $this->recorder->record($this->link, okExtraction(), $this->link->link))->toThrow(LockTimeoutException::class);
 
     expect(LinkSnapshot::query()->count())->toBe(0);
 });
@@ -205,7 +209,7 @@ test('an over-long author, etag and last_modified are capped at 255 characters i
         'author' => str_repeat('a', 300),
         'etag' => str_repeat('e', 300),
         'lastModified' => str_repeat('m', 300),
-    ]));
+    ]), $this->link->link);
 
     $snapshot = LinkSnapshot::query()->sole();
     $link = $this->link->fresh();
@@ -219,9 +223,9 @@ test('an over-long author, etag and last_modified are capped at 255 characters i
 });
 
 test('an over-long etag on unchanged content is capped at 255 characters', function () {
-    $this->recorder->record($this->link, okExtraction('Same body'));
+    $this->recorder->record($this->link, okExtraction('Same body'), $this->link->link);
 
-    $outcome = $this->recorder->record($this->link, okExtraction('Same body', ['etag' => str_repeat('e', 300)]));
+    $outcome = $this->recorder->record($this->link, okExtraction('Same body', ['etag' => str_repeat('e', 300)]), $this->link->link);
 
     expect($outcome)->toBe(RecordOutcome::Unchanged)
         ->and(mb_strlen($this->link->fresh()->etag))->toBe(255);
@@ -233,7 +237,7 @@ test('a link force-deleted before the recorder re-reads it fails silently with n
     $stale = Link::query()->find($this->link->id);
     $this->link->forceDelete();
 
-    $outcome = $this->recorder->record($stale, okExtraction('Body text'));
+    $outcome = $this->recorder->record($stale, okExtraction('Body text'), $stale->link);
 
     expect($outcome)->toBe(RecordOutcome::Failed)
         ->and(LinkSnapshot::query()->count())->toBe(0)
@@ -243,14 +247,65 @@ test('a link force-deleted before the recorder re-reads it fails silently with n
 });
 
 test('the caller\'s link instance is refreshed with current state and its loaded relations reloaded', function () {
-    $this->recorder->record($this->link, okExtraction('First body'));
+    $this->recorder->record($this->link, okExtraction('First body'), $this->link->link);
 
     $caller = Link::query()->with('latestSnapshot')->find($this->link->id);
-    $this->recorder->record($this->link, okExtraction('Second body'));
+    $this->recorder->record($this->link, okExtraction('Second body'), $this->link->link);
 
-    $this->recorder->record($caller, ExtractionResult::failure(ExtractionStatus::Failed, 'fake', 'boom'));
+    $this->recorder->record($caller, ExtractionResult::failure(ExtractionStatus::Failed, 'fake', 'boom'), $caller->link);
 
     expect($caller->relationLoaded('latestSnapshot'))->toBeTrue()
         ->and($caller->latestSnapshot->content_text)->toBe('Second body')
         ->and($caller->extraction_status)->toBe(ExtractionStatus::Failed);
+});
+
+test('a result for a url the link no longer points at is superseded: nothing is written and extraction is re-queued', function () {
+    Queue::fake();
+    Event::fake([LinkSnapshotCreated::class]);
+
+    $this->recorder->record($this->link, okExtraction('Old page body'), $this->link->link);
+    $oldSnapshot = LinkSnapshot::query()->sole();
+
+    Link::query()->whereKey($this->link->id)->update([
+        'link' => 'https://example.com/edited',
+        'extraction_status' => ExtractionStatus::Pending,
+    ]);
+
+    $outcome = $this->recorder->record($this->link, okExtraction('Newer old page body'), 'https://example.com/original');
+    $link = $this->link->fresh();
+
+    expect($outcome)->toBe(RecordOutcome::Superseded)
+        ->and(LinkSnapshot::query()->count())->toBe(1)
+        ->and($link->latest_snapshot_id)->toBe($oldSnapshot->id)
+        ->and($link->extraction_status)->toBe(ExtractionStatus::Pending);
+
+    Queue::assertPushedOn('ingestion', ExtractContentJob::class, fn (ExtractContentJob $job) => $job->link->is($this->link));
+});
+
+test('a failure for a url the link no longer points at does not overwrite the pending status', function () {
+    Queue::fake();
+
+    Link::query()->whereKey($this->link->id)->update([
+        'link' => 'https://example.com/edited',
+        'extraction_status' => ExtractionStatus::Pending,
+    ]);
+
+    $outcome = $this->recorder->record(
+        $this->link,
+        ExtractionResult::failure(ExtractionStatus::Failed, 'fake', 'HTTP 404'),
+        'https://example.com/original',
+    );
+    $link = $this->link->fresh();
+
+    expect($outcome)->toBe(RecordOutcome::Superseded)
+        ->and($link->extraction_status)->toBe(ExtractionStatus::Pending)
+        ->and($link->extraction_error)->toBeNull();
+
+    Queue::assertPushed(ExtractContentJob::class);
+});
+
+test('compareForNoise stays the last parameter, so it can be passed by name', function () {
+    $outcome = $this->recorder->record($this->link, okExtraction('Body'), $this->link->link, compareForNoise: true);
+
+    expect($outcome)->toBe(RecordOutcome::Created);
 });

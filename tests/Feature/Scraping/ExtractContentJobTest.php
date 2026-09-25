@@ -12,6 +12,7 @@ use App\Scraping\ScrapingManager;
 use App\Scraping\SnapshotRecorder;
 use App\Scraping\TransientExtractionException;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
@@ -42,6 +43,8 @@ test('the job is unique per link and runs on the ingestion queue with the agreed
     $job = new ExtractContentJob($this->link);
 
     expect($job)->toBeInstanceOf(ShouldBeUnique::class)
+        ->and($job)->toBeInstanceOf(ShouldBeUniqueUntilProcessing::class)
+        ->and($job->uniqueFor)->toBe(3600)
         ->and($job->uniqueId())->toBe((string) $this->link->id)
         ->and($job->queue)->toBe('ingestion')
         ->and($job->tries)->toBe(3)
@@ -166,4 +169,61 @@ test('LinkCreated dispatches exactly one ExtractContentJob on the ingestion queu
 
     Queue::assertPushedOn('ingestion', ExtractContentJob::class, fn (ExtractContentJob $job) => $job->link->is($this->link));
     Queue::assertPushedTimes(ExtractContentJob::class, 1);
+});
+
+test('a url edited while the job is extracting discards the old page and re-queues extraction', function () {
+    FakeExtractor::respondWith('https://example.com/article', function (string $url): ExtractionResult {
+        Link::query()->whereKey($this->link->id)->update([
+            'link' => 'https://example.com/edited',
+            'extraction_status' => ExtractionStatus::Pending,
+        ]);
+
+        return ExtractionResult::ok('fake', 'The old page body');
+    });
+
+    Queue::fake();
+
+    runExtractContentJob(new ExtractContentJob($this->link));
+
+    $link = $this->link->fresh();
+
+    expect(FakeExtractor::$calls)->toBe(['https://example.com/article'])
+        ->and(LinkSnapshot::query()->count())->toBe(0)
+        ->and($link->extraction_status)->toBe(ExtractionStatus::Pending);
+
+    Queue::assertPushedOn('ingestion', ExtractContentJob::class, fn (ExtractContentJob $job) => $job->link->is($this->link));
+});
+
+test('a transient failure for a superseded url does not throw, since a fresh job is already queued', function () {
+    FakeExtractor::respondWith('*', function (string $url): ExtractionResult {
+        Link::query()->whereKey($this->link->id)->update(['link' => 'https://example.com/edited']);
+
+        return ExtractionResult::failure(ExtractionStatus::Failed, 'fake', 'HTTP 503', ['transient' => true]);
+    });
+
+    Queue::fake();
+
+    $job = (new ExtractContentJob($this->link))->withFakeQueueInteractions();
+    $job->job->attempts = 1;
+
+    runExtractContentJob($job);
+
+    $job->assertNotFailed();
+    Queue::assertPushed(ExtractContentJob::class);
+});
+
+test('a dispatch made while the job runs is not dropped by the unique lock', function () {
+    $nestedDispatches = 0;
+
+    FakeExtractor::respondWith('*', function (string $url) use (&$nestedDispatches): ExtractionResult {
+        if ($nestedDispatches++ === 0) {
+            ExtractContentJob::dispatch($this->link);
+        }
+
+        return ExtractionResult::ok('fake', 'Body text');
+    });
+
+    ExtractContentJob::dispatch($this->link);
+
+    expect(FakeExtractor::$calls)->toHaveCount(2);
 });

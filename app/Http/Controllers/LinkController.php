@@ -227,13 +227,26 @@ class LinkController extends Controller
     }
 
     /**
-     * Restore a soft-deleted link.
+     * Restore a soft-deleted link. Extraction skips trashed links, so one that
+     * never reached ok (an archived import, or one trashed mid-run) is reset
+     * to pending and queued again.
      */
     public function restore(int $link): RedirectResponse
     {
         $link = Link::withTrashed()->filterByCurrentUser()->findOrFail($link);
 
+        $needsExtraction = $link->extraction_status !== ExtractionStatus::Ok;
+
+        if ($needsExtraction) {
+            $link->extraction_status = ExtractionStatus::Pending;
+            $link->extraction_error = null;
+        }
+
         $link->restore();
+
+        if ($needsExtraction) {
+            ExtractContentJob::dispatch($link)->afterCommit();
+        }
 
         $this->groupService->updateUserGroupsLinkCount(Auth::user());
 

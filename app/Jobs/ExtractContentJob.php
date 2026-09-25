@@ -4,10 +4,11 @@ namespace App\Jobs;
 
 use App\Enums\ExtractionStatus;
 use App\Models\Link;
+use App\Scraping\RecordOutcome;
 use App\Scraping\ScrapingManager;
 use App\Scraping\SnapshotRecorder;
 use App\Scraping\TransientExtractionException;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -17,10 +18,21 @@ use Throwable;
  *
  * Idempotent: re-running it on unchanged content refreshes the link's
  * bookkeeping without storing a second snapshot.
+ *
+ * Unique only until it starts processing: a URL edit made while it runs must
+ * be able to queue a fresh job. {@see SnapshotRecorder::record()} then
+ * discards this run's result, since it describes the old URL.
  */
-class ExtractContentJob implements ShouldBeUnique, ShouldQueue
+class ExtractContentJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
     use Queueable;
+
+    /**
+     * How long the unique lock outlives a job that never gets processed (a
+     * lost worker, a flushed queue), so Retry and backfill are not blocked
+     * for long.
+     */
+    public int $uniqueFor = 3600;
 
     public int $tries = 3;
 
@@ -52,7 +64,8 @@ class ExtractContentJob implements ShouldBeUnique, ShouldQueue
     /**
      * A trashed link is skipped. A transient failure is recorded and then
      * rethrown so the queue retries, except on the last attempt, where the
-     * recorded failure stands.
+     * recorded failure stands, and except when the URL changed mid-run,
+     * where the recorder has already queued a fresh job.
      */
     public function handle(ScrapingManager $scraping, SnapshotRecorder $recorder): void
     {
@@ -60,9 +73,15 @@ class ExtractContentJob implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        $result = $scraping->extractFor($this->link->link);
+        $url = $this->link->link;
 
-        $recorder->record($this->link, $result);
+        $result = $scraping->extractFor($url);
+
+        $outcome = $recorder->record($this->link, $result, $url);
+
+        if ($outcome === RecordOutcome::Superseded) {
+            return;
+        }
 
         if ($result->transient && $this->attempts() < $this->tries) {
             throw new TransientExtractionException($result->error ?? 'Transient extraction failure');
