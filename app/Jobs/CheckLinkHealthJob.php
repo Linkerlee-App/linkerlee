@@ -56,11 +56,13 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
     private const BLOCKED_STATUSES = [401, 403, 429];
 
     /**
-     * How long the unique lock outlives a job that never gets processed (a
-     * lost worker, a flushed queue), so the next health-check run is not
-     * blocked for long.
+     * How long, in seconds, the unique lock outlives the job's delay when the
+     * job never gets processed (a lost worker, a flushed queue), so a later
+     * health-check run is not blocked for long.
      */
-    public int $uniqueFor = 3600;
+    public const UNIQUE_LOCK_SECONDS = 3600;
+
+    public int $uniqueFor = self::UNIQUE_LOCK_SECONDS;
 
     public int $tries = 1;
 
@@ -79,6 +81,18 @@ class CheckLinkHealthJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
     public function uniqueId(): string
     {
         return (string) $this->link->id;
+    }
+
+    /**
+     * Delays the job by the given seconds and stretches its unique lock to
+     * cover the delay plus {@see self::UNIQUE_LOCK_SECONDS}, so the lock does
+     * not expire while the job is still waiting to run.
+     */
+    public function delayedBy(int $seconds): static
+    {
+        $this->uniqueFor = $seconds + self::UNIQUE_LOCK_SECONDS;
+
+        return $this->delay(now()->addSeconds($seconds));
     }
 
     /**

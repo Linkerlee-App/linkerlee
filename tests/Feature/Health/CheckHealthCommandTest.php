@@ -112,6 +112,48 @@ test('a second immediate run dispatches nothing, and the bump leaves updated_at 
     Queue::assertPushedTimes(CheckLinkHealthJob::class, 1);
 });
 
+test('400 links on one host are each bumped past their own delay plus an hour, and none is re-selected while its job waits', function () {
+    Queue::fake();
+    $this->travelTo(now()->startOfSecond());
+
+    Link::factory()
+        ->count(400)
+        ->sequence(fn ($sequence) => ['link' => "https://busy.example/{$sequence->index}"])
+        ->create([
+            'user_id' => $this->user->id,
+            'extraction_status' => ExtractionStatus::Ok,
+            'next_check_at' => now()->subMinute(),
+        ]);
+
+    $this->artisan('linkerlee:check-health')
+        ->assertSuccessful()
+        ->expectsOutputToContain('Dispatched 400 health checks across 1 hosts.');
+
+    $jobs = Queue::pushed(CheckLinkHealthJob::class);
+    $nextCheckAts = Link::query()->pluck('next_check_at', 'id');
+
+    expect($jobs)->toHaveCount(400);
+
+    foreach ($jobs as $job) {
+        $delaySeconds = (int) now()->diffInSeconds($job->delay);
+
+        expect($nextCheckAts[$job->link->id]->greaterThanOrEqualTo(now()->addSeconds($delaySeconds + 3600)))->toBeTrue()
+            ->and($job->uniqueFor)->toBeGreaterThanOrEqual($delaySeconds + 3600);
+    }
+
+    expect((int) now()->diffInSeconds($jobs->max(fn (CheckLinkHealthJob $job) => $job->delay)))->toBe(3990);
+
+    $this->artisan('linkerlee:check-health')->assertSuccessful();
+
+    Queue::assertPushedTimes(CheckLinkHealthJob::class, 400);
+
+    $this->travel(61)->minutes();
+
+    $this->artisan('linkerlee:check-health')
+        ->assertSuccessful()
+        ->expectsOutputToContain('Dispatched 7 health checks across 1 hosts.');
+});
+
 test('the command is scheduled hourly', function () {
     $events = app(Schedule::class)->events();
 

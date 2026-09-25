@@ -13,10 +13,16 @@ use Illuminate\Console\Command;
  * Runs hourly from the schedule (see `routes/console.php`). The batch is
  * grouped by host so no domain is hit more than once every
  * `link_health.domain_throttle_seconds`: within a group, the i-th link is
- * dispatched with a delay of `i * domain_throttle_seconds`. Every selected
- * link's `next_check_at` is bumped an hour ahead before dispatch, so a slow
- * queue does not make the next hourly run re-select the same link; the job
- * itself overwrites that value once it actually runs.
+ * dispatched with a delay of `i * domain_throttle_seconds`.
+ *
+ * Before dispatch, every selected link's `next_check_at` is bumped to its own
+ * delay plus an hour, so no later hourly run re-selects a link whose delayed
+ * job has not run yet; the job overwrites that value once it runs. The bump
+ * is one plain query-builder update per distinct delay (at most
+ * `link_health.batch_size` of them, one per position within the largest host
+ * group), which leaves `updated_at` alone: a health check is not a user edit.
+ * The job's unique lock is stretched to the same delay plus an hour, so it
+ * too outlives the wait.
  */
 class CheckHealthCommand extends Command
 {
@@ -44,14 +50,6 @@ class CheckHealthCommand extends Command
             ->limit((int) config('link_health.batch_size'))
             ->get();
 
-        if ($links->isNotEmpty()) {
-            // A plain query-builder update, so `updated_at` is left alone: a
-            // health check is not a user edit.
-            Link::query()->whereKey($links->pluck('id'))->toBase()->update([
-                'next_check_at' => now()->addHour(),
-            ]);
-        }
-
         $groups = [];
 
         foreach ($links as $link) {
@@ -59,18 +57,28 @@ class CheckHealthCommand extends Command
         }
 
         $throttleSeconds = (int) config('link_health.domain_throttle_seconds');
-        $dispatched = 0;
+        $idsByDelay = [];
+        $jobs = [];
 
         foreach ($groups as $group) {
             foreach (array_values($group) as $position => $link) {
-                CheckLinkHealthJob::dispatch($link)
-                    ->delay(now()->addSeconds($position * $throttleSeconds));
-
-                $dispatched++;
+                $delaySeconds = $position * $throttleSeconds;
+                $idsByDelay[$delaySeconds][] = $link->id;
+                $jobs[] = (new CheckLinkHealthJob($link))->delayedBy($delaySeconds);
             }
         }
 
-        $this->info(sprintf('Dispatched %d health checks across %d hosts.', $dispatched, count($groups)));
+        foreach ($idsByDelay as $delaySeconds => $ids) {
+            Link::query()->whereKey($ids)->toBase()->update([
+                'next_check_at' => now()->addSeconds($delaySeconds + CheckLinkHealthJob::UNIQUE_LOCK_SECONDS),
+            ]);
+        }
+
+        foreach ($jobs as $job) {
+            dispatch($job);
+        }
+
+        $this->info(sprintf('Dispatched %d health checks across %d hosts.', count($jobs), count($groups)));
 
         return self::SUCCESS;
     }
