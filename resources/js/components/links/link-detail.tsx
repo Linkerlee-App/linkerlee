@@ -7,6 +7,7 @@ import {
     Copy,
     ExternalLink,
     Pencil,
+    RefreshCw,
     Star,
     Trash2,
 } from 'lucide-react';
@@ -26,10 +27,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import * as linksRoute from '@/routes/links';
+import { ExtractionStatusBadge } from './extraction-status-badge';
 import { LinkSourceBadge } from './source-badge';
 import { TagPicker } from './tag-picker';
 import {
     faviconFor,
+    type ExtractionStatus,
     type GroupOption,
     type LinkItem,
     type TagOption,
@@ -198,10 +201,14 @@ export function LinkDetailView({
     const [isFavorite, setIsFavorite] = useState(link.is_favorite);
     const [rating, setRating] = useState(link.rating);
     const [readAt, setReadAt] = useState(link.read_at);
+    const [extractionStatus, setExtractionStatus] = useState(
+        link.extraction_status,
+    );
     const [isEditing, setIsEditing] = useState(false);
     const [copied, setCopied] = useState(false);
     const [confirmArchive, setConfirmArchive] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [retrying, setRetrying] = useState(false);
 
     const [prevLink, setPrevLink] = useState(link);
     if (prevLink !== link) {
@@ -209,6 +216,7 @@ export function LinkDetailView({
         setIsFavorite(link.is_favorite);
         setRating(link.rating);
         setReadAt(link.read_at);
+        setExtractionStatus(link.extraction_status);
     }
 
     const favicon = faviconFor(link);
@@ -251,6 +259,19 @@ export function LinkDetailView({
         );
         setRating(data.rating);
         reload();
+    }
+
+    async function handleRetryExtraction() {
+        setRetrying(true);
+        try {
+            const { data } = await axios.patch<{
+                extraction_status: ExtractionStatus;
+            }>(linksRoute.retryExtraction(link.id).url);
+            setExtractionStatus(data.extraction_status);
+            reload();
+        } finally {
+            setRetrying(false);
+        }
     }
 
     async function handleCopy() {
@@ -488,6 +509,39 @@ export function LinkDetailView({
                                 </div>
                             </div>
                         )}
+
+                        {extractionStatus !== null &&
+                            extractionStatus !== 'ok' && (
+                                <div className="flex flex-col gap-1.5">
+                                    <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                        Content extraction
+                                    </span>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <ExtractionStatusBadge
+                                            status={extractionStatus}
+                                            error={link.extraction_error}
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleRetryExtraction}
+                                            disabled={retrying}
+                                        >
+                                            <RefreshCw
+                                                className={
+                                                    retrying
+                                                        ? 'animate-spin'
+                                                        : ''
+                                                }
+                                            />
+                                            {retrying
+                                                ? 'Retrying…'
+                                                : 'Retry extraction'}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
 
                         <p
                             className="text-xs text-muted-foreground"

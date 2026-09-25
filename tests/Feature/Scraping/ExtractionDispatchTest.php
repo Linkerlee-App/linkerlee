@@ -116,6 +116,7 @@ test('a web url edit dispatches ExtractContentJob and resets extraction status t
         'user_id' => $user->id,
         'link' => 'https://example.com/old-url',
         'extraction_status' => ExtractionStatus::Ok,
+        'extraction_error' => 'A stale error from a previous attempt',
     ]);
 
     $this->actingAs($user)->put(route('links.update', $link->id), [
@@ -131,7 +132,9 @@ test('a web url edit dispatches ExtractContentJob and resets extraction status t
         fn (ExtractContentJob $job) => $job->link->is($link),
     );
 
-    expect($link->fresh()->extraction_status)->toBe(ExtractionStatus::Pending);
+    $link->refresh();
+    expect($link->extraction_status)->toBe(ExtractionStatus::Pending);
+    expect($link->extraction_error)->toBeNull();
 });
 
 test('a web title-only edit does not dispatch ExtractContentJob', function () {

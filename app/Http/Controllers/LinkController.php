@@ -166,6 +166,7 @@ class LinkController extends Controller
 
         if ($urlChanged) {
             $link->extraction_status = ExtractionStatus::Pending;
+            $link->extraction_error = null;
         }
 
         $link->save();
@@ -322,6 +323,23 @@ class LinkController extends Controller
         $link->save();
 
         return response()->json(['rating' => $link->rating]);
+    }
+
+    /**
+     * Reset a link back to pending and re-queue content extraction, clearing
+     * any error recorded by the previous attempt.
+     */
+    public function retryExtraction(Link $link): JsonResponse
+    {
+        $this->authorizeOwnership($link);
+
+        $link->extraction_status = ExtractionStatus::Pending;
+        $link->extraction_error = null;
+        $link->save();
+
+        ExtractContentJob::dispatch($link)->afterCommit();
+
+        return response()->json(['extraction_status' => $link->extraction_status->value]);
     }
 
     /**
