@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\ExtractionStatus;
+use App\Enums\HealthStatus;
 use App\Events\LinkCreated;
 use App\Jobs\ExtractContentJob;
 use App\Models\Link;
@@ -135,6 +136,72 @@ test('a web url edit dispatches ExtractContentJob and resets extraction status t
     $link->refresh();
     expect($link->extraction_status)->toBe(ExtractionStatus::Pending);
     expect($link->extraction_error)->toBeNull();
+});
+
+test('a web url edit resets the link\'s health state and schedules its first check on the new url', function () {
+    Queue::fake();
+    $this->travelTo(now()->startOfSecond());
+
+    $user = User::factory()->create();
+    $link = Link::factory()->create([
+        'user_id' => $user->id,
+        'link' => 'https://example.com/dead-url',
+        'extraction_status' => ExtractionStatus::Ok,
+        'health_status' => HealthStatus::Gone,
+        'redirect_url' => 'https://elsewhere.test/moved',
+        'consecutive_failures' => 5,
+        'etag' => '"old-page"',
+        'last_modified' => 'Fri, 15 Mar 2024 09:00:00 GMT',
+        'check_interval_days' => 56,
+        'next_check_at' => now()->addDays(90),
+    ]);
+
+    $this->actingAs($user)->put(route('links.update', $link->id), [
+        'link' => 'https://example.com/live-url',
+        'title' => 'Some title',
+        'tags' => [],
+        'groups' => [],
+    ]);
+
+    $link->refresh();
+    $initialDays = config('link_health.initial_interval_days');
+
+    expect($link->health_status)->toBeNull()
+        ->and($link->redirect_url)->toBeNull()
+        ->and($link->consecutive_failures)->toBe(0)
+        ->and($link->etag)->toBeNull()
+        ->and($link->last_modified)->toBeNull()
+        ->and($link->check_interval_days)->toBe($initialDays)
+        ->and($link->next_check_at->equalTo(now()->addDays($initialDays)))->toBeTrue();
+});
+
+test('a web title-only edit leaves the link\'s health state alone', function () {
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $link = Link::factory()->create([
+        'user_id' => $user->id,
+        'link' => 'https://example.com/same-url',
+        'extraction_status' => ExtractionStatus::Ok,
+        'health_status' => HealthStatus::Gone,
+        'consecutive_failures' => 5,
+        'etag' => '"page"',
+        'check_interval_days' => 56,
+    ]);
+
+    $this->actingAs($user)->put(route('links.update', $link->id), [
+        'link' => 'https://example.com/same-url',
+        'title' => 'New title',
+        'tags' => [],
+        'groups' => [],
+    ]);
+
+    $link->refresh();
+
+    expect($link->health_status)->toBe(HealthStatus::Gone)
+        ->and($link->consecutive_failures)->toBe(5)
+        ->and($link->etag)->toBe('"page"')
+        ->and($link->check_interval_days)->toBe(56);
 });
 
 test('a web title-only edit does not dispatch ExtractContentJob', function () {

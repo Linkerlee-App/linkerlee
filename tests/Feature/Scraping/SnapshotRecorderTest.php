@@ -6,6 +6,7 @@ use App\Jobs\ExtractContentJob;
 use App\Models\Link;
 use App\Models\LinkSnapshot;
 use App\Models\User;
+use App\Scraping\Drivers\FakeExtractor;
 use App\Scraping\ExtractionResult;
 use App\Scraping\RecordOutcome;
 use App\Scraping\SnapshotRecorder;
@@ -18,9 +19,14 @@ use Illuminate\Support\Sleep;
 
 beforeEach(function () {
     Http::preventStrayRequests();
+    FakeExtractor::reset();
 
     $this->link = Link::factory()->create(['user_id' => User::factory()]);
     $this->recorder = app(SnapshotRecorder::class);
+});
+
+afterEach(function () {
+    FakeExtractor::reset();
 });
 
 /**
@@ -168,6 +174,37 @@ test('pruning 7 snapshots keeps 5 and never deletes the latest one, even when it
         ]);
 });
 
+test('seven successive changes keep five snapshots, always including the original and the latest', function () {
+    config()->set('scraping.keep_snapshots', 5);
+
+    foreach (range(1, 7) as $revision) {
+        $this->travel(1)->days();
+        $this->recorder->record($this->link, okExtraction("Revision {$revision} of the parked page"), $this->link->link);
+    }
+
+    $link = $this->link->fresh();
+    $remaining = $link->snapshots()->orderBy('fetched_at')->pluck('content_text')->all();
+
+    expect($remaining)->toBe([
+        'Revision 1 of the parked page',
+        'Revision 4 of the parked page',
+        'Revision 5 of the parked page',
+        'Revision 6 of the parked page',
+        'Revision 7 of the parked page',
+    ])->and($link->latestSnapshot->content_text)->toBe('Revision 7 of the parked page');
+});
+
+test('with a retention of one, only the latest snapshot is kept', function () {
+    config()->set('scraping.keep_snapshots', 1);
+
+    foreach (range(1, 3) as $revision) {
+        $this->travel(1)->days();
+        $this->recorder->record($this->link, okExtraction("Revision {$revision}"), $this->link->link);
+    }
+
+    expect($this->link->fresh()->snapshots()->pluck('content_text')->all())->toBe(['Revision 3']);
+});
+
 test('the lock serializes two recorders with identical content into one snapshot', function () {
     Sleep::fake(syncWithCarbon: true);
 
@@ -308,4 +345,165 @@ test('compareForNoise stays the last parameter, so it can be passed by name', fu
     $outcome = $this->recorder->record($this->link, okExtraction('Body'), $this->link->link, compareForNoise: true);
 
     expect($outcome)->toBe(RecordOutcome::Created);
+});
+
+test('a link\'s first snapshot schedules its next health check', function () {
+    $this->travelTo(now()->startOfSecond());
+
+    $outcome = $this->recorder->record($this->link, okExtraction('First body'), $this->link->link);
+    $link = $this->link->fresh();
+
+    expect($outcome)->toBe(RecordOutcome::Created)
+        ->and($link->check_interval_days)->toBe(config('link_health.initial_interval_days'))
+        ->and($link->next_check_at->equalTo(now()->addDays(config('link_health.initial_interval_days'))))->toBeTrue();
+});
+
+test('a first extraction that is not ok still schedules the first health check', function (ExtractionStatus $status) {
+    $this->travelTo(now()->startOfSecond());
+
+    $outcome = $this->recorder->record($this->link, ExtractionResult::failure($status, 'fake', 'No text'), $this->link->link);
+    $link = $this->link->fresh();
+    $initialDays = config('link_health.initial_interval_days');
+
+    expect($outcome)->toBe(RecordOutcome::Failed)
+        ->and($link->extraction_status)->toBe($status)
+        ->and($link->check_interval_days)->toBe($initialDays)
+        ->and($link->next_check_at->equalTo(now()->addDays($initialDays)))->toBeTrue();
+})->with([
+    'unsupported (a PDF)' => ExtractionStatus::Unsupported,
+    'failed (dead at save)' => ExtractionStatus::Failed,
+    'blocked (a bot wall)' => ExtractionStatus::Blocked,
+]);
+
+test('a failed extraction does not reschedule an already-scheduled health check', function () {
+    $scheduledFor = now()->startOfSecond()->addDays(2);
+    $this->link->forceFill(['next_check_at' => $scheduledFor, 'check_interval_days' => 2])->save();
+
+    $this->recorder->record($this->link, ExtractionResult::failure(ExtractionStatus::Failed, 'fake', 'boom'), $this->link->link);
+    $link = $this->link->fresh();
+
+    expect($link->check_interval_days)->toBe(2)
+        ->and($link->next_check_at->equalTo($scheduledFor))->toBeTrue();
+});
+
+test('a later snapshot on the same link does not reschedule an already-scheduled health check', function () {
+    $this->recorder->record($this->link, okExtraction('First body'), $this->link->link);
+
+    $scheduledFor = now()->startOfSecond()->addDays(2);
+
+    $this->link->fresh()->forceFill([
+        'next_check_at' => $scheduledFor,
+        'check_interval_days' => 2,
+    ])->save();
+
+    $this->recorder->record($this->link, okExtraction('Second body'), $this->link->link);
+    $link = $this->link->fresh();
+
+    expect($link->check_interval_days)->toBe(2)
+        ->and($link->next_check_at->equalTo($scheduledFor))->toBeTrue();
+});
+
+test('a superseded extraction dispatches the re-extraction only after the lock is released, so the nested run does not block on it', function () {
+    FakeExtractor::respondWith('https://example.com/edited', ExtractionResult::ok('fake', 'Edited page body'));
+
+    $originalUrl = $this->link->link;
+
+    Link::query()->whereKey($this->link->id)->update(['link' => 'https://example.com/edited']);
+
+    $start = microtime(true);
+
+    $outcome = $this->recorder->record($this->link, okExtraction('Old page body'), $originalUrl);
+
+    $elapsed = microtime(true) - $start;
+
+    expect($outcome)->toBe(RecordOutcome::Superseded)
+        ->and($elapsed)->toBeLessThan(2.0);
+
+    $link = Link::query()->find($this->link->id);
+
+    expect(FakeExtractor::$calls)->toBe(['https://example.com/edited'])
+        ->and($link->extraction_status)->toBe(ExtractionStatus::Ok)
+        ->and($link->latestSnapshot->content_text)->toBe('Edited page body');
+});
+
+/**
+ * A 300-word article, and the same article with only its last word changed:
+ * similar enough (Jaccard well above 0.9) to count as noise.
+ *
+ * @return array{0: string, 1: string}
+ */
+function noisyPair(): array
+{
+    $words = array_map(fn (int $i): string => "word{$i}", range(1, 300));
+    $original = implode(' ', $words);
+    $words[299] = 'changed-counter';
+
+    return [$original, implode(' ', $words)];
+}
+
+test('with compareForNoise, near-identical text is unchanged and only refreshes the bookkeeping', function () {
+    [$original, $noisy] = noisyPair();
+    Event::fake([LinkSnapshotCreated::class]);
+
+    $this->recorder->record($this->link, okExtraction($original, ['etag' => '"v1"']), $this->link->link);
+    $firstExtractedAt = $this->link->fresh()->extracted_at;
+
+    $this->travel(5)->minutes();
+
+    $outcome = $this->recorder->record(
+        $this->link,
+        okExtraction($noisy, ['etag' => '"v2"', 'lastModified' => 'Fri, 15 Mar 2024 09:00:00 GMT']),
+        $this->link->link,
+        compareForNoise: true,
+    );
+    $link = $this->link->fresh();
+
+    expect($outcome)->toBe(RecordOutcome::Unchanged)
+        ->and(LinkSnapshot::query()->count())->toBe(1)
+        ->and($link->latestSnapshot->content_text)->toBe($original)
+        ->and($link->content_changed_at)->toBeNull()
+        ->and($link->etag)->toBe('"v2"')
+        ->and($link->last_modified)->toBe('Fri, 15 Mar 2024 09:00:00 GMT')
+        ->and($link->extracted_at->greaterThan($firstExtractedAt))->toBeTrue();
+
+    Event::assertDispatchedTimes(LinkSnapshotCreated::class, 1);
+});
+
+test('without compareForNoise, near-identical text is still stored, so an extraction after a url edit always wins', function () {
+    [$original, $noisy] = noisyPair();
+
+    $this->recorder->record($this->link, okExtraction($original), $this->link->link);
+    $outcome = $this->recorder->record($this->link, okExtraction($noisy), $this->link->link);
+
+    expect($outcome)->toBe(RecordOutcome::Created)
+        ->and(LinkSnapshot::query()->count())->toBe(2)
+        ->and($this->link->fresh()->latestSnapshot->content_text)->toBe($noisy);
+});
+
+test('with compareForNoise, a real change is still stored', function () {
+    $this->recorder->record($this->link, okExtraction('An article about apples and how they grow in orchards'), $this->link->link);
+
+    $outcome = $this->recorder->record(
+        $this->link,
+        okExtraction('A completely different piece on the history of the bicycle'),
+        $this->link->link,
+        compareForNoise: true,
+    );
+
+    expect($outcome)->toBe(RecordOutcome::Created)
+        ->and(LinkSnapshot::query()->count())->toBe(2);
+});
+
+test('content_changed_at is stamped when a later snapshot replaces one, but not for the first', function () {
+    $this->travelTo(now()->startOfSecond());
+
+    $this->recorder->record($this->link, okExtraction('First body'), $this->link->link);
+
+    expect($this->link->fresh()->content_changed_at)->toBeNull();
+
+    $this->travel(1)->hour();
+
+    $this->recorder->record($this->link, okExtraction('Second body'), $this->link->link);
+
+    expect($this->link->fresh()->content_changed_at->equalTo(now()))->toBeTrue();
 });

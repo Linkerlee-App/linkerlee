@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Concerns\HasCurrentUserScope;
 use App\Enums\ExtractionStatus;
+use App\Enums\HealthStatus;
 use App\Enums\LinkSource;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -105,6 +106,12 @@ class Link extends Model implements Searchable
             'source' => LinkSource::class,
             'extraction_status' => ExtractionStatus::class,
             'extracted_at' => 'datetime',
+            'health_status' => HealthStatus::class,
+            'last_checked_at' => 'datetime',
+            'next_check_at' => 'datetime',
+            'content_changed_at' => 'datetime',
+            'check_interval_days' => 'integer',
+            'consecutive_failures' => 'integer',
         ];
     }
 
@@ -210,6 +217,36 @@ class Link extends Model implements Searchable
         }
 
         return $this->updated_at->format('d.m.Y');
+    }
+
+    /**
+     * Null when the link has never been health-checked.
+     */
+    public function getLastCheckedAtForHumansAttribute(bool $withTime = false): ?string
+    {
+        if ($this->last_checked_at === null) {
+            return null;
+        }
+
+        return $withTime
+            ? $this->last_checked_at->format('d.m.Y H:i:s')
+            : $this->last_checked_at->format('d.m.Y');
+    }
+
+    /**
+     * When the latest snapshot's text last changed: stamped whenever a new
+     * snapshot replaces an earlier one, whether a health check, an extraction
+     * retry or a URL edit produced it. Null until that first happens.
+     */
+    public function getContentChangedAtForHumansAttribute(bool $withTime = false): ?string
+    {
+        if ($this->content_changed_at === null) {
+            return null;
+        }
+
+        return $withTime
+            ? $this->content_changed_at->format('d.m.Y H:i:s')
+            : $this->content_changed_at->format('d.m.Y');
     }
 
     /**

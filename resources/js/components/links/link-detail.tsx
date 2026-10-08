@@ -27,7 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import * as linksRoute from '@/routes/links';
-import { ExtractionStatusBadge } from './extraction-status-badge';
+import { LinkStatusBadge } from './link-status-badge';
 import { LinkSourceBadge } from './source-badge';
 import { TagPicker } from './tag-picker';
 import {
@@ -517,9 +517,12 @@ export function LinkDetailView({
                                         Content extraction
                                     </span>
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <ExtractionStatusBadge
-                                            status={extractionStatus}
-                                            error={link.extraction_error}
+                                        <LinkStatusBadge
+                                            extractionStatus={extractionStatus}
+                                            healthStatus={null}
+                                            extractionError={
+                                                link.extraction_error
+                                            }
                                         />
                                         <Button
                                             type="button"
@@ -543,12 +546,38 @@ export function LinkDetailView({
                                 </div>
                             )}
 
+                        {link.health_status !== null &&
+                            link.health_status !== 'ok' && (
+                                <div className="flex flex-col gap-1.5">
+                                    <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                        Link health
+                                    </span>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <LinkStatusBadge
+                                            extractionStatus={null}
+                                            healthStatus={link.health_status}
+                                            redirectUrl={link.redirect_url}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
                         <p
                             className="text-xs text-muted-foreground"
                             title={link.created_at_with_time}
                         >
                             Added {link.created_at}
                         </p>
+                        {link.last_checked_at && (
+                            <p className="text-xs text-muted-foreground">
+                                Last checked {link.last_checked_at}
+                            </p>
+                        )}
+                        {link.content_changed_at && (
+                            <p className="text-xs text-muted-foreground">
+                                Content changed {link.content_changed_at}
+                            </p>
+                        )}
                     </div>
 
                     <div

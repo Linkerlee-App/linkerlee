@@ -20,7 +20,7 @@ pest()->extend(TestCase::class)
 
 /*
 |--------------------------------------------------------------------------
-| Scraping unit tests
+| Scraping and link-health unit tests
 |--------------------------------------------------------------------------
 |
 | These exercise config(), Http::fake() and the other facades, so they need
@@ -29,7 +29,7 @@ pest()->extend(TestCase::class)
 */
 
 pest()->extend(TestCase::class)
-    ->in('Unit/Scraping');
+    ->in('Unit/Scraping', 'Unit/Health');
 
 /*
 |--------------------------------------------------------------------------

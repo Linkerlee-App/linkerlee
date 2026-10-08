@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Link;
+use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -27,4 +29,17 @@ test('a naive timestamp written as timestamptz reads back at the exact instant i
     $readBack = DB::selectOne('select ?::timestamptz as instant', [$writtenAt->format('Y-m-d H:i:s')])->instant;
 
     expect(Carbon::parse($readBack)->equalTo($writtenAt))->toBeTrue();
+});
+
+test('a timestampTz column round-trips through the database at the exact instant it was written', function () {
+    $this->travelTo(now()->startOfSecond());
+
+    $writtenAt = now();
+
+    $link = Link::factory()->create(['user_id' => User::factory()]);
+    $link->forceFill(['next_check_at' => $writtenAt])->save();
+
+    $fresh = Link::query()->find($link->id);
+
+    expect($fresh->next_check_at->equalTo($writtenAt))->toBeTrue();
 });

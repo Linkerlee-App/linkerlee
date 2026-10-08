@@ -4,25 +4,9 @@ import { Archive, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import * as linksRoute from '@/routes/links';
-import { ExtractionStatusBadge } from './extraction-status-badge';
+import { LinkStatusBadge } from './link-status-badge';
 import { LinkSourceBadge } from './source-badge';
-import {
-    faviconFor,
-    type ExtractionStatus,
-    type LinkItem,
-    type TagOption,
-} from './types';
-
-/**
- * `pending` is left out here: the card grid only flags a link once it needs
- * the user's attention, and every fresh or just-retried link is briefly
- * pending, so showing it there would flicker on every save.
- */
-const CARD_EXTRACTION_STATUSES: ExtractionStatus[] = [
-    'failed',
-    'blocked',
-    'unsupported',
-];
+import { faviconFor, type LinkItem, type TagOption } from './types';
 
 interface LinkCardProps {
     link: LinkItem;
@@ -170,16 +154,11 @@ export function LinkCard({
                         ))}
                     </span>
                 )}
-                {link.extraction_status !== null &&
-                    CARD_EXTRACTION_STATUSES.includes(
-                        link.extraction_status,
-                    ) && (
-                        <span>
-                            <ExtractionStatusBadge
-                                status={link.extraction_status}
-                            />
-                        </span>
-                    )}
+                <LinkStatusBadge
+                    extractionStatus={link.extraction_status}
+                    healthStatus={link.health_status}
+                    mode="card"
+                />
             </span>
 
             <span className="flex shrink-0 items-center gap-1.5">
