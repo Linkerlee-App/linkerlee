@@ -13,6 +13,10 @@ Allow a few minutes of downtime per hundred thousand links.
 - An empty PostgreSQL 15+ database, and a role that owns it. During the load, pgloader
   drops and re-creates the foreign keys and disables triggers, so it can load tables in any
   order. That needs the role to be a superuser, or else the owner of every table.
+- The `pgvector` extension must be available on the target Postgres (the `pgvector/pgvector`
+  Docker image bundles it; a managed Postgres host needs it added to its allow-list of
+  extensions). Step 2 below runs `CREATE EXTENSION IF NOT EXISTS vector`, which itself needs
+  either a superuser role or one a host has explicitly granted `CREATE EXTENSION` to.
 - `pgloader` 3.6 or newer (`brew install pgloader`, `apt install pgloader`, or the
   `dimitri/pgloader` Docker image).
 - This version of LinkerLee checked out, with `composer install` done.
@@ -23,7 +27,7 @@ Allow a few minutes of downtime per hundred thousand links.
 php artisan down
 # stop the long-running worker (supervisor / systemd), then drain what is left.
 # --force is required: a worker does not process jobs while the app is down.
-php artisan queue:work --queue=default,ingestion,enrichment,health --stop-when-empty --force
+php artisan queue:work --queue=default,ingestion,health,enrichment --stop-when-empty --force
 mysql linkerlee -Ne "SELECT COUNT(*) FROM jobs"      # must print 0
 
 mysqldump --single-transaction --routines linkerlee > linkerlee-mysql-$(date +%F).sql
@@ -186,7 +190,7 @@ MySQL volume is no longer attached. To copy the data:
    ```bash
    docker compose exec app php artisan down
    docker compose stop queue
-   docker compose exec app php artisan queue:work --queue=default,ingestion,enrichment,health --stop-when-empty --force
+   docker compose exec app php artisan queue:work --queue=default,ingestion,health,enrichment --stop-when-empty --force
    # -T keeps the TTY out of the dump; the password is read inside the container
    docker compose exec -T mysql sh -c \
      'mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" --single-transaction --routines linkerlee' \

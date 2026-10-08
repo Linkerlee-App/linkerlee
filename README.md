@@ -165,7 +165,7 @@ Most of `.env` can stay as it ships. The settings that actually matter:
 | Variable | Why it matters |
 |---|---|
 | `DB_CONNECTION` | `pgsql`. PostgreSQL is the only supported database — search relies on its full-text index. Set the `DB_*` credentials to match your server. |
-| `QUEUE_CONNECTION` | Defaults to `database`. **A queue worker must be running**, listening on all four queues (`default`, `ingestion`, `enrichment`, `health`), or link metadata is never fetched, content is never extracted, and saved links stay untitled. `composer dev` runs one for you; in production use `php artisan queue:work --queue=default,ingestion,enrichment,health` under supervisor or systemd. After deploying, run `php artisan linkerlee:extract` once to backfill content extraction for links saved before the worker was wired up. |
+| `QUEUE_CONNECTION` | Defaults to `database`. **A queue worker must be running**, listening on all four queues (`default`, `ingestion`, `enrichment`, `health`), or link metadata is never fetched, content is never extracted, and saved links stay untitled. `composer dev` runs one for you; in production use `php artisan queue:work --queue=default,ingestion,health,enrichment` under supervisor or systemd. After deploying, run `php artisan linkerlee:extract` once to backfill content extraction for links saved before the worker was wired up. |
 | `MAILGUN_*` | Optional. Only needed for save-by-email. `MAILGUN_WEBHOOK_SIGNING_KEY` must be set or the inbound webhook rejects everything. |
 | `LOG_VIEWER_ALLOWED_EMAILS` | Comma-separated emails allowed to open `/log-viewer`. Empty means nobody — set it deliberately. |
 
@@ -249,9 +249,10 @@ sent; read it with `docker compose logs app` or at `/log-viewer`.
 |---|---|
 | `web` | nginx on the port set by `APP_PORT`, serving `public/` and the built assets |
 | `app` | PHP-FPM. Runs the migrations and warms the config, route and view caches on startup |
-| `queue` | `php artisan queue:work --queue=default,ingestion,enrichment,health` — **the metadata fetcher and content extractor**. Without it, saved links stay untitled and their content is never extracted |
+| `queue` | `php artisan queue:work --queue=default,ingestion,health,enrichment` — **the metadata fetcher and content extractor**. Without it, saved links stay untitled and their content is never extracted |
 | `scheduler` | `php artisan schedule:work` — fires the hourly `linkerlee:check-health` command. Without it, link health checks never run |
-| `postgres` | PostgreSQL 17 |
+| `postgres` | PostgreSQL 17 with pgvector (`pgvector/pgvector:0.8.0-pg17`) |
+| `ollama` | *Optional*, under the `enrichment` profile: the embedding server. See [Content enrichment](#content-enrichment) |
 
 Useful commands:
 
@@ -287,12 +288,65 @@ php artisan migrate --force
 php artisan optimize
 ```
 
-Then run `php artisan queue:work --queue=default,ingestion,enrichment,health` as a supervised
+Then run `php artisan queue:work --queue=default,ingestion,health,enrichment` as a supervised
 long-running process. Without it, metadata enrichment and content extraction silently never
 happen — this is the single most common self-hosting mistake. After the first deploy, run
 `php artisan linkerlee:extract` once to backfill content extraction for links that predate it.
 The scheduler must also run — `php artisan schedule:work`, or a cron entry calling
 `php artisan schedule:run` every minute — or link health checks never fire.
+
+### Content enrichment
+
+Each newly extracted snapshot is split into chunks and embedded (and, if enabled, summarized)
+on the `enrichment` queue, so existing snapshots need a one-time backfill after the first
+deploy.
+
+Summaries are **off by default** (`SUMMARY_DRIVER=none`), so page text never leaves your
+server; setting `SUMMARY_DRIVER=anthropic` sends each page's text to Anthropic, so update the
+privacy page before enabling it.
+
+Embeddings come from an Ollama server at `OLLAMA_URL`. Pull the model on that host first:
+
+```bash
+ollama pull nomic-embed-text
+```
+
+With Docker, an optional `ollama` service ships under the `enrichment` compose profile. Set
+`OLLAMA_URL=http://ollama:11434` in `.env`, then:
+
+```bash
+docker compose --profile enrichment up -d
+docker compose exec ollama ollama pull nomic-embed-text
+```
+
+The app does not depend on it: without it, embedding jobs retry and then fail, and nothing
+else is affected.
+
+Then, once the queue worker is running, backfill:
+
+```bash
+# Summaries enabled (SUMMARY_DRIVER=anthropic): this alone is enough. It summarizes every
+# snapshot and also chunks and embeds any snapshot that has no chunks yet.
+php artisan linkerlee:resummarize
+
+# Summaries off (the default): resummarize has nothing to do, so chunk and embed instead.
+php artisan linkerlee:rechunk
+```
+
+With Haiku, the summary backfill costs roughly *number of snapshots* × $0.007. A summary
+already made for identical page text by the same model is reused rather than paid for again.
+Outside of this backfill, `linkerlee:rechunk` is only needed after changing the chunking
+config. At most `enrichment.chunking.max_chunks` (500) chunks are kept per snapshot; the rest
+of an enormous page is left out of search, but its full text stays on the snapshot.
+
+`ANTHROPIC_API_KEY` (only when summaries are enabled) and `OLLAMA_URL` must be set in `.env`,
+and the **`pgvector` Postgres extension is required**, because `content_chunks.embedding` is
+stored as a `vector` column.
+
+`linkerlee:reembed` is a separate command for switching embedding models. It embeds one probe
+text with the target model and refuses to run when the vector it gets back differs in size
+from the existing `content_chunks.embedding` column, printing the migration needed to resize
+it first.
 
 ## Roadmap
 

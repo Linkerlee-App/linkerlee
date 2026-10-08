@@ -29,7 +29,7 @@ pest()->extend(TestCase::class)
 */
 
 pest()->extend(TestCase::class)
-    ->in('Unit/Scraping', 'Unit/Health');
+    ->in('Unit/Scraping', 'Unit/Health', 'Unit/Enrichment');
 
 /*
 |--------------------------------------------------------------------------

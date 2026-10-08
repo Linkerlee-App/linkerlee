@@ -75,3 +75,23 @@ test('the link resource exposes extraction_status', function () {
         ->assertInertia(fn ($page) => $page
             ->where('link.extraction_status', 'blocked'));
 });
+
+test('retrying extraction is throttled to 10 requests a minute', function () {
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $link = Link::factory()->create([
+        'user_id' => $user->id,
+        'extraction_status' => ExtractionStatus::Failed,
+    ]);
+
+    foreach (range(1, 10) as $attempt) {
+        $this->actingAs($user)
+            ->patch(route('links.retry-extraction', $link->id))
+            ->assertOk();
+    }
+
+    $this->actingAs($user)
+        ->patch(route('links.retry-extraction', $link->id))
+        ->assertTooManyRequests();
+});
