@@ -1,5 +1,6 @@
 <?php
 
+use App\Enrichment\Contracts\EmbeddingProvider;
 use App\Enrichment\Contracts\SummaryProvider;
 use App\Enrichment\EnrichmentProviderException;
 use App\Enrichment\NonRetryableProviderException;
@@ -531,4 +532,86 @@ test('a forced summary is never reused from another snapshot', function () {
 
     expect(FakeSummaryProvider::$calls)->toHaveCount(1)
         ->and($snapshot->fresh()->summary)->toBe("Summary of {$snapshot->title}");
+});
+
+/**
+ * Binds the fake embedding driver to a provider that runs `$whileEmbedding`
+ * once, during its first embed() call, then answers like the fake provider.
+ */
+function bindEmbeddingProviderWithInterlude(Closure $whileEmbedding): void
+{
+    app()->bind(FakeEmbeddingProvider::class, fn (): EmbeddingProvider => new class($whileEmbedding) implements EmbeddingProvider
+    {
+        private static bool $ran = false;
+
+        public function __construct(private Closure $whileEmbedding)
+        {
+            self::$ran = false;
+        }
+
+        public function embed(array $texts): array
+        {
+            if (! self::$ran) {
+                self::$ran = true;
+                ($this->whileEmbedding)();
+            }
+
+            return (new FakeEmbeddingProvider)->embed($texts);
+        }
+
+        public function model(): string
+        {
+            return 'fake-embedding';
+        }
+
+        public function dimensions(): int
+        {
+            return 768;
+        }
+
+        public function probeDimensions(): int
+        {
+            return 768;
+        }
+
+        public function withModel(string $model): static
+        {
+            return $this;
+        }
+    });
+}
+
+test('a chunk whose text changes while its batch is embedded keeps no stale vector and is embedded again', function () {
+    $snapshot = latestSnapshotFor($this->link, ['title' => 'Late title', 'summary' => null, 'summary_model' => null, 'content_text' => longText()]);
+
+    ChunkSnapshotJob::dispatchSync($snapshot);
+
+    $head = ContentChunk::query()->where('link_snapshot_id', $snapshot->id)->where('ordinal', 0)->sole();
+
+    /**
+     * A summary commits mid-embed: it rewrites chunk 0 and clears its
+     * vector, as SummarizeSnapshotJob does.
+     */
+    bindEmbeddingProviderWithInterlude(function () use ($head): void {
+        ContentChunk::query()->whereKey($head->id)->update([
+            'text' => "Late title\n\nNew summary",
+            'embedding' => null,
+            'embedding_model' => null,
+        ]);
+    });
+
+    Queue::fake();
+
+    app()->call([new EmbedChunksJob($snapshot), 'handle']);
+
+    expect($head->fresh()->embedding)->toBeNull()
+        ->and($head->fresh()->embedding_model)->toBeNull()
+        ->and(ContentChunk::query()->where('ordinal', '>', 0)->whereNull('embedding')->count())->toBe(0);
+
+    app()->call([new EmbedChunksJob($snapshot), 'handle']);
+
+    $expected = (new FakeEmbeddingProvider)->embed(["Late title\n\nNew summary"])[0];
+
+    expect($head->fresh()->embedding)->toEqualWithDelta($expected, 0.0001)
+        ->and($head->fresh()->embedding_model)->toBe('fake-embedding');
 });

@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Casts\VectorCast;
 use App\Enrichment\EmbeddingManager;
 use App\Models\ContentChunk;
 use App\Models\LinkSnapshot;
@@ -59,6 +60,13 @@ class EmbedChunksJob implements ShouldQueue
      * it has one and the model in use is that driver's default (the prefix
      * is model-specific, so an overriding model gets none), before it is
      * embedded; the stored chunk text is not.
+     *
+     * Each vector is written only while its chunk still holds the text that
+     * was embedded. A chunk rewritten during the provider call (chunk 0,
+     * by {@see SummarizeSnapshotJob}) keeps the null embedding its rewrite
+     * set, so it stays pending and is embedded again with its new text.
+     * The write is a query-builder update, which skips model casts, so the
+     * vector is formatted through {@see VectorCast} by hand.
      */
     public function handle(EmbeddingManager $embeddings): void
     {
@@ -85,10 +93,13 @@ class EmbedChunksJob implements ShouldQueue
         $vectors = $provider->embed($chunks->map(fn (ContentChunk $chunk): string => $prefix.$chunk->text)->values()->all());
 
         foreach ($chunks->values() as $index => $chunk) {
-            $chunk->update([
-                'embedding' => $vectors[$index],
-                'embedding_model' => $model,
-            ]);
+            ContentChunk::query()
+                ->whereKey($chunk->id)
+                ->where('text', $chunk->text)
+                ->update([
+                    'embedding' => (new VectorCast)->set($chunk, 'embedding', $vectors[$index], []),
+                    'embedding_model' => $model,
+                ]);
         }
 
         if ($this->pendingChunks($model)->exists()) {
