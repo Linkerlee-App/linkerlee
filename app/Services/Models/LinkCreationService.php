@@ -3,6 +3,7 @@
 namespace App\Services\Models;
 
 use App\Enums\LinkSource;
+use App\Events\LinkCreated;
 use App\Jobs\FetchLinkMetadataJob;
 use App\Models\Link;
 use App\Models\User;
@@ -20,6 +21,7 @@ class LinkCreationService
         $link->save();
 
         FetchLinkMetadataJob::dispatch($link);
+        LinkCreated::dispatch($link);
 
         return $link;
     }

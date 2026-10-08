@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "1afa2cb12a648132aec08f336d19ae65",
+    "content-hash": "279744584ea8619d4f9dd3bcf2ca3a4a",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -660,6 +660,71 @@
                 }
             ],
             "time": "2025-03-06T22:45:56+00:00"
+        },
+        {
+            "name": "fivefilters/readability.php",
+            "version": "v3.3.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/fivefilters/readability.php.git",
+                "reference": "e2ee7b9e49eae89ac7ed2c74b15718100a73b4c8"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/fivefilters/readability.php/zipball/e2ee7b9e49eae89ac7ed2c74b15718100a73b4c8",
+                "reference": "e2ee7b9e49eae89ac7ed2c74b15718100a73b4c8",
+                "shasum": ""
+            },
+            "require": {
+                "ext-dom": "*",
+                "ext-mbstring": "*",
+                "ext-xml": "*",
+                "league/uri": "^7.0",
+                "masterminds/html5": "^2.0",
+                "php": ">=8.1",
+                "psr/log": "^1.0 || ^2.0 || ^3.0"
+            },
+            "require-dev": {
+                "monolog/monolog": "^3.0",
+                "phpunit/phpunit": "^10.0 || ^11.0"
+            },
+            "suggest": {
+                "monolog/monolog": "Allow logging debug information"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "fivefilters\\Readability\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "Apache-2.0"
+            ],
+            "authors": [
+                {
+                    "name": "Andres Rey",
+                    "email": "andreskrey@gmail.com",
+                    "role": "Original Developer"
+                },
+                {
+                    "name": "Keyvan Minoukadeh",
+                    "email": "keyvan@fivefilters.org",
+                    "homepage": "https://www.fivefilters.org",
+                    "role": "Developer/Maintainer"
+                }
+            ],
+            "description": "A PHP port of Readability.js",
+            "homepage": "https://github.com/fivefilters/readability.php",
+            "keywords": [
+                "html",
+                "readability"
+            ],
+            "support": {
+                "issues": "https://github.com/fivefilters/readability.php/issues",
+                "source": "https://github.com/fivefilters/readability.php/tree/v3.3.3"
+            },
+            "time": "2025-04-26T23:45:37+00:00"
         },
         {
             "name": "fruitcake/php-cors",
@@ -2515,6 +2580,73 @@
             "time": "2026-03-08T20:05:35+00:00"
         },
         {
+            "name": "masterminds/html5",
+            "version": "2.11.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Masterminds/html5-php.git",
+                "reference": "a1e7a2f88ee13635d86fc61cfbdf2306a76ddfc7"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Masterminds/html5-php/zipball/a1e7a2f88ee13635d86fc61cfbdf2306a76ddfc7",
+                "reference": "a1e7a2f88ee13635d86fc61cfbdf2306a76ddfc7",
+                "shasum": ""
+            },
+            "require": {
+                "ext-dom": "*",
+                "php": ">=7.4"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^6 || ^7 || ^8 || ^9 || ^10"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "2.7-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Masterminds\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Matt Butcher",
+                    "email": "technosophos@gmail.com"
+                },
+                {
+                    "name": "Matt Farina",
+                    "email": "matt@mattfarina.com"
+                },
+                {
+                    "name": "Asmir Mustafic",
+                    "email": "goetas@gmail.com"
+                }
+            ],
+            "description": "An HTML5 parser and serializer.",
+            "homepage": "http://masterminds.github.io/html5-php",
+            "keywords": [
+                "HTML5",
+                "dom",
+                "html",
+                "parser",
+                "querypath",
+                "serializer",
+                "xml"
+            ],
+            "support": {
+                "issues": "https://github.com/Masterminds/html5-php/issues",
+                "source": "https://github.com/Masterminds/html5-php/tree/2.11.0"
+            },
+            "time": "2026-08-18T06:18:41+00:00"
+        },
+        {
             "name": "monolog/monolog",
             "version": "3.10.0",
             "source": {
@@ -4286,6 +4418,74 @@
             "time": "2026-06-18T03:57:49+00:00"
         },
         {
+            "name": "spatie/browsershot",
+            "version": "5.4.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/spatie/browsershot.git",
+                "reference": "dcf7a65fd1d0fc8fd113739b84982377728d0b2f"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/spatie/browsershot/zipball/dcf7a65fd1d0fc8fd113739b84982377728d0b2f",
+                "reference": "dcf7a65fd1d0fc8fd113739b84982377728d0b2f",
+                "shasum": ""
+            },
+            "require": {
+                "ext-fileinfo": "*",
+                "ext-json": "*",
+                "php": "^8.2",
+                "spatie/temporary-directory": "^2.0",
+                "symfony/process": "^6.0|^7.0|^8.0"
+            },
+            "require-dev": {
+                "pestphp/pest": "^3.0|^4.0",
+                "spatie/image": "^3.6",
+                "spatie/pdf-to-text": "^1.52",
+                "spatie/phpunit-snapshot-assertions": "^5.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Spatie\\Browsershot\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Freek Van der Herten",
+                    "email": "freek@spatie.be",
+                    "homepage": "https://github.com/freekmurze",
+                    "role": "Developer"
+                }
+            ],
+            "description": "Convert a webpage to an image or pdf using headless Chrome",
+            "homepage": "https://github.com/spatie/browsershot",
+            "keywords": [
+                "chrome",
+                "convert",
+                "headless",
+                "image",
+                "pdf",
+                "puppeteer",
+                "screenshot",
+                "webpage"
+            ],
+            "support": {
+                "source": "https://github.com/spatie/browsershot/tree/5.4.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/spatie",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-05-26T13:13:33+00:00"
+        },
+        {
             "name": "spatie/eloquent-sortable",
             "version": "5.0.1",
             "source": {
@@ -4638,6 +4838,67 @@
                 }
             ],
             "time": "2026-04-23T08:26:29+00:00"
+        },
+        {
+            "name": "spatie/temporary-directory",
+            "version": "2.4.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/spatie/temporary-directory.git",
+                "reference": "32cbb9645b28839cf4f476708e99a2c70e6802c9"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/spatie/temporary-directory/zipball/32cbb9645b28839cf4f476708e99a2c70e6802c9",
+                "reference": "32cbb9645b28839cf4f476708e99a2c70e6802c9",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^9.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Spatie\\TemporaryDirectory\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Alex Vanderbist",
+                    "email": "alex@spatie.be",
+                    "homepage": "https://spatie.be",
+                    "role": "Developer"
+                }
+            ],
+            "description": "Easily create, use and destroy temporary directories",
+            "homepage": "https://github.com/spatie/temporary-directory",
+            "keywords": [
+                "php",
+                "spatie",
+                "temporary-directory"
+            ],
+            "support": {
+                "issues": "https://github.com/spatie/temporary-directory/issues",
+                "source": "https://github.com/spatie/temporary-directory/tree/2.4.0"
+            },
+            "funding": [
+                {
+                    "url": "https://spatie.be/open-source/support-us",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/spatie",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-06-22T07:55:44+00:00"
         },
         {
             "name": "spomky-labs/cbor-php",

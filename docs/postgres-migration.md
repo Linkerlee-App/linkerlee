@@ -23,7 +23,7 @@ Allow a few minutes of downtime per hundred thousand links.
 php artisan down
 # stop the long-running worker (supervisor / systemd), then drain what is left.
 # --force is required: a worker does not process jobs while the app is down.
-php artisan queue:work --stop-when-empty --force
+php artisan queue:work --queue=default,ingestion,enrichment,health --stop-when-empty --force
 mysql linkerlee -Ne "SELECT COUNT(*) FROM jobs"      # must print 0
 
 mysqldump --single-transaction --routines linkerlee > linkerlee-mysql-$(date +%F).sql
@@ -186,7 +186,7 @@ MySQL volume is no longer attached. To copy the data:
    ```bash
    docker compose exec app php artisan down
    docker compose stop queue
-   docker compose exec app php artisan queue:work --stop-when-empty --force
+   docker compose exec app php artisan queue:work --queue=default,ingestion,enrichment,health --stop-when-empty --force
    # -T keeps the TTY out of the dump; the password is read inside the container
    docker compose exec -T mysql sh -c \
      'mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" --single-transaction --routines linkerlee' \

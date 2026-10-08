@@ -165,7 +165,7 @@ Most of `.env` can stay as it ships. The settings that actually matter:
 | Variable | Why it matters |
 |---|---|
 | `DB_CONNECTION` | `pgsql`. PostgreSQL is the only supported database — search relies on its full-text index. Set the `DB_*` credentials to match your server. |
-| `QUEUE_CONNECTION` | Defaults to `database`. **A queue worker must be running** or link metadata is never fetched and saved links stay untitled. `composer dev` runs one for you; in production use `php artisan queue:work` under supervisor or systemd. |
+| `QUEUE_CONNECTION` | Defaults to `database`. **A queue worker must be running**, listening on all four queues (`default`, `ingestion`, `enrichment`, `health`), or link metadata is never fetched, content is never extracted, and saved links stay untitled. `composer dev` runs one for you; in production use `php artisan queue:work --queue=default,ingestion,enrichment,health` under supervisor or systemd. After deploying, run `php artisan linkerlee:extract` once to backfill content extraction for links saved before the worker was wired up. |
 | `MAILGUN_*` | Optional. Only needed for save-by-email. `MAILGUN_WEBHOOK_SIGNING_KEY` must be set or the inbound webhook rejects everything. |
 | `LOG_VIEWER_ALLOWED_EMAILS` | Comma-separated emails allowed to open `/log-viewer`. Empty means nobody — set it deliberately. |
 
@@ -249,7 +249,7 @@ sent; read it with `docker compose logs app` or at `/log-viewer`.
 |---|---|
 | `web` | nginx on the port set by `APP_PORT`, serving `public/` and the built assets |
 | `app` | PHP-FPM. Runs the migrations and warms the config, route and view caches on startup |
-| `queue` | `php artisan queue:work` — **the metadata fetcher**. Without it, saved links stay untitled |
+| `queue` | `php artisan queue:work --queue=default,ingestion,enrichment,health` — **the metadata fetcher and content extractor**. Without it, saved links stay untitled and their content is never extracted |
 | `postgres` | PostgreSQL 17 |
 
 Useful commands:
@@ -286,8 +286,10 @@ php artisan migrate --force
 php artisan optimize
 ```
 
-Then run `php artisan queue:work` as a supervised long-running process. Without it, metadata
-enrichment silently never happens — this is the single most common self-hosting mistake.
+Then run `php artisan queue:work --queue=default,ingestion,enrichment,health` as a supervised
+long-running process. Without it, metadata enrichment and content extraction silently never
+happen — this is the single most common self-hosting mistake. After the first deploy, run
+`php artisan linkerlee:extract` once to backfill content extraction for links that predate it.
 
 ## Roadmap
 

@@ -29,6 +29,9 @@ Roadmap in [README.md](README.md) for what is merely intended.
 - Link creation with title, URL and description, plus per-user duplicate detection
 - Background metadata enrichment (title, description, favicon, preview image, page text)
   via the queued `FetchLinkMetadataJob` — a queue worker is required for this
+- Full-page content extraction into versioned `link_snapshots`, via the queued
+  `ExtractContentJob` — also needs a queue worker, and `php artisan linkerlee:extract`
+  backfills links saved before extraction existed
 - URLs up to 2048 characters (`Link::MAX_URL_LENGTH`); titles up to 255
 - Tagging via spatie/laravel-tags, with tag filtering across the links, dashboard and tags views
 - Tag suggestions derived from the fetched page text (`SuggestTagController`)
@@ -172,12 +175,18 @@ gitignored. On a fresh clone, run `php artisan wayfinder:generate` (or any Vite 
 before `npm run types`, or TypeScript cannot resolve the `@/actions` and `@/routes` imports.
 
 ### Queue Management
+Jobs run on four queues: `default`, `ingestion` (content extraction), `enrichment` and
+`health`. A worker must listen on all of them or some jobs never run.
+
 ```bash
 # Process queue jobs
-php artisan queue:work
+php artisan queue:work --queue=default,ingestion,enrichment,health
 
 # Listen for queue jobs (auto-reloads on code changes)
-php artisan queue:listen --tries=1
+php artisan queue:listen --queue=default,ingestion,enrichment,health --tries=1
+
+# Backfill content extraction for links saved before the worker was wired up
+php artisan linkerlee:extract
 ```
 
 ## Architecture

@@ -58,6 +58,21 @@ export const LINK_SOURCE_ICONS: Record<LinkSource, LucideIcon> = {
     import: Upload,
 };
 
+/**
+ * The outcome of one content-extraction attempt against a link's URL.
+ *
+ * Mirrors App\Enums\ExtractionStatus.
+ */
+export const EXTRACTION_STATUSES = [
+    'pending',
+    'ok',
+    'failed',
+    'blocked',
+    'unsupported',
+] as const;
+
+export type ExtractionStatus = (typeof EXTRACTION_STATUSES)[number];
+
 export interface LinkItem {
     id: number;
     title: string | null;
@@ -69,6 +84,9 @@ export interface LinkItem {
     source: LinkSource | null;
     favicon_url: string | null;
     preview_image_url: string | null;
+    extraction_status: ExtractionStatus | null;
+    extraction_error: string | null;
+    extracted_at: string | null;
     tags: TagOption[];
     tag_ids: number[];
     linkGroups: GroupOption[];

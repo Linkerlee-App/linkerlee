@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ExtractionStatus;
 use App\Enums\LinkSource;
+use App\Events\LinkCreated;
 use App\Http\Requests\StoreLinkRequest;
 use App\Http\Requests\UpdateLinkRequest;
 use App\Http\Resources\LinkResource;
+use App\Jobs\ExtractContentJob;
 use App\Jobs\FetchLinkMetadataJob;
 use App\Models\Group;
 use App\Models\Link;
@@ -92,6 +95,7 @@ class LinkController extends Controller
         $link->save();
 
         FetchLinkMetadataJob::dispatch($link);
+        LinkCreated::dispatch($link);
 
         $groupIds = $validated['groups'];
 
@@ -160,10 +164,19 @@ class LinkController extends Controller
 
         $urlChanged = $link->isDirty('link');
 
+        if ($urlChanged) {
+            $link->extraction_status = ExtractionStatus::Pending;
+            $link->extraction_error = null;
+        }
+
         $link->save();
 
         if ($urlChanged || empty($link->title) || $link->metadata_fetched_at === null) {
             FetchLinkMetadataJob::dispatch($link);
+        }
+
+        if ($urlChanged) {
+            ExtractContentJob::dispatch($link)->afterCommit();
         }
 
         $groupIds = $validated['groups'];
@@ -214,13 +227,26 @@ class LinkController extends Controller
     }
 
     /**
-     * Restore a soft-deleted link.
+     * Restore a soft-deleted link. Extraction skips trashed links, so one that
+     * never reached ok (an archived import, or one trashed mid-run) is reset
+     * to pending and queued again.
      */
     public function restore(int $link): RedirectResponse
     {
         $link = Link::withTrashed()->filterByCurrentUser()->findOrFail($link);
 
+        $needsExtraction = $link->extraction_status !== ExtractionStatus::Ok;
+
+        if ($needsExtraction) {
+            $link->extraction_status = ExtractionStatus::Pending;
+            $link->extraction_error = null;
+        }
+
         $link->restore();
+
+        if ($needsExtraction) {
+            ExtractContentJob::dispatch($link)->afterCommit();
+        }
 
         $this->groupService->updateUserGroupsLinkCount(Auth::user());
 
@@ -310,6 +336,23 @@ class LinkController extends Controller
         $link->save();
 
         return response()->json(['rating' => $link->rating]);
+    }
+
+    /**
+     * Reset a link back to pending and re-queue content extraction, clearing
+     * any error recorded by the previous attempt.
+     */
+    public function retryExtraction(Link $link): JsonResponse
+    {
+        $this->authorizeOwnership($link);
+
+        $link->extraction_status = ExtractionStatus::Pending;
+        $link->extraction_error = null;
+        $link->save();
+
+        ExtractContentJob::dispatch($link)->afterCommit();
+
+        return response()->json(['extraction_status' => $link->extraction_status->value]);
     }
 
     /**
