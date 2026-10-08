@@ -56,6 +56,12 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Must match config('app.timezone'). Laravel's PostgresConnector issues
+            // `set time zone` with this value; without it the session falls back to
+            // the server's own default, and every timestampTz column (naive
+            // "Y-m-d H:i:s", no offset) is written and read back in that timezone
+            // instead of UTC, skewing every stored instant.
+            'timezone' => env('DB_TIMEZONE', 'UTC'),
         ],
 
         'sqlsrv' => [
