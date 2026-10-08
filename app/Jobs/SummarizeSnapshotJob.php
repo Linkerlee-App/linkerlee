@@ -135,6 +135,8 @@ class SummarizeSnapshotJob implements ShouldQueue
      * When the snapshot had neither a title nor a summary, its chunk 0 is a
      * body chunk; the body is shifted up one ordinal (keeping its
      * embeddings) and a new chunk 0 inserted instead of overwriting it.
+     * Any body chunk pushed past `enrichment.chunking.max_chunks` by the
+     * shift is then deleted, so the cap still holds.
      *
      * @return bool whether chunk 0 now needs embedding
      */
@@ -181,6 +183,8 @@ class SummarizeSnapshotJob implements ShouldQueue
             'link_snapshot_id' => $this->snapshot->id,
             'ordinal' => 0,
         ]);
+
+        (clone $chunks)->where('ordinal', '>=', max(1, (int) config('enrichment.chunking.max_chunks', 500)))->delete();
 
         return true;
     }

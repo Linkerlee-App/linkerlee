@@ -20,7 +20,9 @@ use Throwable;
  * really returns (probed once up front, not read from config), since a vector
  * column can only ever hold vectors of the size it was created with;
  * printing the migration the operator needs is cheaper than corrupting
- * the column.
+ * the column. It also refuses when the probed size disagrees with the
+ * configured `EMBEDDING_DIMENSIONS`, which the provider checks every vector
+ * against, so the jobs it dispatched would all fail.
  */
 class ReembedCommand extends Command
 {
@@ -66,6 +68,18 @@ class ReembedCommand extends Command
 
         if ($columnDimensions !== $dimensions) {
             $this->refuse($columnDimensions, $dimensions);
+
+            return Command::FAILURE;
+        }
+
+        if ($provider->dimensions() !== $dimensions) {
+            $this->error(sprintf(
+                'EMBEDDING_DIMENSIONS is %d, but the model %s produces vector(%d), so every embed job would fail. Set EMBEDDING_DIMENSIONS=%d and run this again. Dispatching nothing.',
+                $provider->dimensions(),
+                $target,
+                $dimensions,
+                $dimensions,
+            ));
 
             return Command::FAILURE;
         }

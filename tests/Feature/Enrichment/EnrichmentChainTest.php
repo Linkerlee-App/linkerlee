@@ -696,3 +696,25 @@ test('each embed run re-dispatches with the last embedded id as its cursor and t
         && $job->afterId === $chunks[2]->id
         && $job->hop === 2);
 });
+
+test('a later summary that inserts chunk 0 for a snapshot with no title keeps the chunk count at max_chunks', function () {
+    config()->set('enrichment.chunking.max_chunks', 3);
+
+    $snapshot = latestSnapshotFor($this->link, ['title' => null, 'summary' => null, 'summary_model' => null, 'content_text' => longText()]);
+
+    ChunkSnapshotJob::dispatchSync($snapshot);
+    EmbedChunksJob::dispatchSync($snapshot);
+
+    $bodyBefore = ContentChunk::query()->orderBy('ordinal')->get(['id', 'text'])->toArray();
+
+    expect($bodyBefore)->toHaveCount(3);
+
+    SummarizeSnapshotJob::dispatchSync($snapshot);
+
+    $chunks = ContentChunk::query()->where('link_snapshot_id', $snapshot->id)->orderBy('ordinal')->get();
+
+    expect($chunks->pluck('ordinal')->all())->toBe([0, 1, 2])
+        ->and($chunks->first()->text)->toBe('Summary of')
+        ->and($chunks->slice(1)->map(fn (ContentChunk $chunk): array => ['id' => $chunk->id, 'text' => $chunk->text])->values()->all())
+        ->toBe(array_slice($bodyBefore, 0, 2));
+});

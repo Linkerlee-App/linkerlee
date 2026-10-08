@@ -377,15 +377,16 @@ test('reembed refuses and prints a migration when the column dimension does not 
 });
 
 /**
- * Binds the fake embedding driver to a provider that reports the configured
- * dimensions but whose model really produces vectors of `$actualDimensions`,
- * optionally throwing from the probe or from embedding itself.
+ * Binds the fake embedding driver to a provider that reports
+ * `$configuredDimensions` (EMBEDDING_DIMENSIONS) but whose model really
+ * produces vectors of `$actualDimensions`, optionally throwing from the probe
+ * or from embedding itself.
  */
-function bindEmbeddingProvider(int $actualDimensions, ?Throwable $probeFailure = null, ?Throwable $embedFailure = null): void
+function bindEmbeddingProvider(int $actualDimensions, ?Throwable $probeFailure = null, ?Throwable $embedFailure = null, int $configuredDimensions = 768): void
 {
-    app()->bind(FakeEmbeddingProvider::class, fn (): EmbeddingProvider => new class($actualDimensions, $probeFailure, $embedFailure) implements EmbeddingProvider
+    app()->bind(FakeEmbeddingProvider::class, fn (): EmbeddingProvider => new class($actualDimensions, $probeFailure, $embedFailure, $configuredDimensions) implements EmbeddingProvider
     {
-        public function __construct(private int $actual, private ?Throwable $probeFailure, private ?Throwable $embedFailure) {}
+        public function __construct(private int $actual, private ?Throwable $probeFailure, private ?Throwable $embedFailure, private int $configured) {}
 
         public function embed(array $texts): array
         {
@@ -412,7 +413,7 @@ function bindEmbeddingProvider(int $actualDimensions, ?Throwable $probeFailure =
 
         public function dimensions(): int
         {
-            return 768;
+            return $this->configured;
         }
 
         public function withModel(string $model): static
@@ -421,6 +422,21 @@ function bindEmbeddingProvider(int $actualDimensions, ?Throwable $probeFailure =
         }
     });
 }
+
+test('reembed refuses when EMBEDDING_DIMENSIONS disagrees with what the model really produces, even though the column matches', function () {
+    Queue::fake();
+    bindEmbeddingProvider(768, configuredDimensions: 1024);
+
+    $snapshot = makeCurrentSnapshot();
+    makeChunkFor($snapshot);
+
+    $this->artisan('linkerlee:reembed')
+        ->assertExitCode(1)
+        ->expectsOutputToContain('Set EMBEDDING_DIMENSIONS=768');
+
+    Queue::assertNothingPushed();
+    expect(FakeEmbeddingProvider::$calls)->toBe([]);
+});
 
 test('reembed refuses when the model really produces another size, even though the config says 768', function () {
     Queue::fake();
