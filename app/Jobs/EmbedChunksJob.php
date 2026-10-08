@@ -9,6 +9,7 @@ use App\Models\LinkSnapshot;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Embeds a snapshot's content chunks, the last step of the chunk-then-embed
@@ -19,6 +20,13 @@ use Illuminate\Foundation\Queue\Queueable;
  * re-dispatches itself while more remain, so a huge page never outruns the
  * job's timeout, and re-running it after a partial failure picks up where it
  * left off without re-embedding a chunk already embedded by the model in use.
+ *
+ * A run only looks at chunks after `$afterId`, its cursor, and hands the last
+ * id it embedded to the next run, so one loop walks a snapshot's chunks
+ * forward once and ends. Two loops on different models (a `reembed --model`
+ * beside the default chain) can't keep undoing each other's batches. As a
+ * safety net, a loop stops re-dispatching after {@see self::maxHops()} runs
+ * and logs a warning.
  */
 class EmbedChunksJob implements ShouldQueue
 {
@@ -40,9 +48,15 @@ class EmbedChunksJob implements ShouldQueue
 
     /**
      * @param  string|null  $model  Embed with this model instead of the configured default.
+     * @param  int  $afterId  Only embed chunks with a greater id: the last id the previous run embedded.
+     * @param  int  $hop  How many runs of this loop came before this one.
      */
-    public function __construct(public LinkSnapshot $snapshot, public ?string $model = null)
-    {
+    public function __construct(
+        public LinkSnapshot $snapshot,
+        public ?string $model = null,
+        public int $afterId = 0,
+        public int $hop = 0,
+    ) {
         $this->onQueue('enrichment');
     }
 
@@ -64,7 +78,8 @@ class EmbedChunksJob implements ShouldQueue
      * Each vector is written only while its chunk still holds the text that
      * was embedded. A chunk rewritten during the provider call (chunk 0,
      * by {@see SummarizeSnapshotJob}) keeps the null embedding its rewrite
-     * set, so it stays pending and is embedded again with its new text.
+     * set, so it stays pending and the EmbedChunksJob that rewrite
+     * dispatches embeds it with its new text.
      * The write is a query-builder update, which skips model casts, so the
      * vector is formatted through {@see VectorCast} by hand.
      */
@@ -82,6 +97,7 @@ class EmbedChunksJob implements ShouldQueue
             : '';
 
         $chunks = $this->pendingChunks($model)
+            ->where('id', '>', $this->afterId)
             ->orderBy('id')
             ->limit(max(1, (int) config('enrichment.embedding.batch_size')))
             ->get();
@@ -102,9 +118,35 @@ class EmbedChunksJob implements ShouldQueue
                 ]);
         }
 
-        if ($this->pendingChunks($model)->exists()) {
-            self::dispatch($this->snapshot, $this->model)->onConnection($this->connection);
+        $lastId = $chunks->last()->id;
+
+        if (! $this->pendingChunks($model)->where('id', '>', $lastId)->exists()) {
+            return;
         }
+
+        if ($this->hop + 1 >= self::maxHops()) {
+            Log::warning('EmbedChunksJob reached its hop cap; chunks are left pending.', [
+                'link_snapshot_id' => $this->snapshot->id,
+                'model' => $model,
+                'after_id' => $lastId,
+                'hop' => $this->hop,
+            ]);
+
+            return;
+        }
+
+        self::dispatch($this->snapshot, $this->model, $lastId, $this->hop + 1)->onConnection($this->connection);
+    }
+
+    /**
+     * The most runs one loop may take: enough batches for a snapshot at
+     * `enrichment.chunking.max_chunks`, plus one.
+     */
+    public static function maxHops(): int
+    {
+        $batchSize = max(1, (int) config('enrichment.embedding.batch_size'));
+
+        return (int) ceil(max(1, (int) config('enrichment.chunking.max_chunks')) / $batchSize) + 1;
     }
 
     /**

@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
@@ -614,4 +615,84 @@ test('a chunk whose text changes while its batch is embedded keeps no stale vect
 
     expect($head->fresh()->embedding)->toEqualWithDelta($expected, 0.0001)
         ->and($head->fresh()->embedding_model)->toBe('fake-embedding');
+});
+
+/**
+ * Runs the given jobs, and every EmbedChunksJob they push, first in first
+ * out on a faked queue, so two loops interleave run by run. Stops after
+ * `$maxRuns` and returns how many runs it took.
+ *
+ * @param  list<EmbedChunksJob>  $jobs
+ */
+function drainEmbedJobs(array $jobs, int $maxRuns = 50): int
+{
+    Queue::fake();
+
+    $seen = 0;
+    $runs = 0;
+
+    while ($jobs !== [] && $runs < $maxRuns) {
+        app()->call([array_shift($jobs), 'handle']);
+        $runs++;
+
+        $pushed = Queue::pushed(EmbedChunksJob::class)->values();
+        array_push($jobs, ...$pushed->slice($seen)->all());
+        $seen = $pushed->count();
+    }
+
+    return $runs;
+}
+
+test('two embed loops with different models over one snapshot each walk forward once and end', function () {
+    config()->set('enrichment.embedding.batch_size', 2);
+
+    $snapshot = latestSnapshotFor($this->link);
+
+    foreach (range(0, 6) as $ordinal) {
+        ContentChunk::factory()->create(['link_snapshot_id' => $snapshot->id, 'link_id' => $this->link->id, 'ordinal' => $ordinal, 'text' => "chunk {$ordinal}"]);
+    }
+
+    $runs = drainEmbedJobs([new EmbedChunksJob($snapshot), new EmbedChunksJob($snapshot, 'other-embedding')]);
+
+    expect($runs)->toBe(8)
+        ->and(ContentChunk::query()->whereNull('embedding')->count())->toBe(0);
+});
+
+test('an embed loop that reaches the hop cap stops re-dispatching and logs a warning', function () {
+    config()->set('enrichment.embedding.batch_size', 1);
+    config()->set('enrichment.chunking.max_chunks', 2);
+
+    $snapshot = latestSnapshotFor($this->link);
+
+    foreach (range(0, 5) as $ordinal) {
+        ContentChunk::factory()->create(['link_snapshot_id' => $snapshot->id, 'link_id' => $this->link->id, 'ordinal' => $ordinal, 'text' => "chunk {$ordinal}"]);
+    }
+
+    Log::spy();
+
+    $runs = drainEmbedJobs([new EmbedChunksJob($snapshot)]);
+
+    expect($runs)->toBe(3)
+        ->and(ContentChunk::query()->whereNotNull('embedding')->count())->toBe(3);
+
+    Log::shouldHaveReceived('warning')->once()->withArgs(fn (string $message, array $context): bool => str_contains($message, 'hop cap')
+        && $context['link_snapshot_id'] === $snapshot->id);
+});
+
+test('each embed run re-dispatches with the last embedded id as its cursor and the next hop', function () {
+    config()->set('enrichment.embedding.batch_size', 2);
+
+    $snapshot = latestSnapshotFor($this->link);
+    $chunks = collect(range(0, 4))->map(fn (int $ordinal): ContentChunk => ContentChunk::factory()->create(['link_snapshot_id' => $snapshot->id, 'link_id' => $this->link->id, 'ordinal' => $ordinal, 'text' => "chunk {$ordinal}"]));
+
+    Queue::fake();
+
+    app()->call([new EmbedChunksJob($snapshot, 'other-embedding', $chunks[0]->id, 1), 'handle']);
+
+    expect(FakeEmbeddingProvider::$calls)->toBe([['chunk 1', 'chunk 2']]);
+
+    Queue::assertPushedTimes(EmbedChunksJob::class, 1);
+    Queue::assertPushed(EmbedChunksJob::class, fn (EmbedChunksJob $job): bool => $job->model === 'other-embedding'
+        && $job->afterId === $chunks[2]->id
+        && $job->hop === 2);
 });

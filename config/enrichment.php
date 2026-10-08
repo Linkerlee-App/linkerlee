@@ -71,6 +71,7 @@ return [
 
         // Chunks sent per embedding request. EmbedChunksJob embeds one batch
         // per run and re-dispatches itself, so this also bounds a job's run.
+        // A loop is capped at ceil(max_chunks / batch_size) + 1 runs.
         'batch_size' => (int) env('EMBEDDING_BATCH_SIZE', 32),
     ],
 
