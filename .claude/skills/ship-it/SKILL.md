@@ -65,10 +65,9 @@ the PR body.
   `php artisan test --compact tests/Feature/<Path>`.
 - If nothing covers the change, **write a test first** (Pest v4, feature tests
   by default, model factories, `fake()` for Faker data), then run it.
-- Tests run on in-memory SQLite while production is MySQL. Anything that
-  depends on MySQL behaviour (column lengths, full-text search, collation)
-  cannot be proven by the suite — verify it against a local MySQL database and
-  say so in the report.
+- Tests run on PostgreSQL (`linkerlee_test`), the same engine as production,
+  so column lengths, full-text search and case sensitivity are covered by the
+  suite like anything else. A local Postgres is required.
 - **All targeted tests must pass.** If any fail, stop and report the output —
   do not commit. Offer to run the full suite (`php artisan test --compact`)
   when green.

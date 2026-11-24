@@ -53,10 +53,9 @@ class Tag extends \Spatie\Tags\Tag implements Searchable
     /**
      * Order tags alphabetically by their translated name.
      *
-     * `name` is a JSON column, and MySQL does not order one by the string it
-     * holds, so `orderBy('name')` yields an order that looks arbitrary to the
-     * user. The extracted value carries a binary collation on both drivers,
-     * hence the `lower()` needed to keep the listing case-insensitive.
+     * `name` is a JSON column, so `orderBy('name')` orders by the JSON text
+     * rather than by the name the user sees. The name is extracted with `->>`
+     * and lowercased so the listing sorts case-insensitively.
      */
     public function scopeOrderByName(Builder $query): Builder
     {

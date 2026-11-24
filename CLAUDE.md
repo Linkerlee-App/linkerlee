@@ -8,7 +8,7 @@ LinkerLee is a bookmarking service that lets users save links and find them agai
 
 - **Backend**: Laravel 12, PHP 8.4
 - **Bridge**: Inertia.js v2
-- **Database**: SQLite by default (`.env.example`); MySQL 8.0 supported and used in production
+- **Database**: PostgreSQL 17 everywhere — production, Docker, local dev and the test suite
 - **Frontend**: React 19, TypeScript, Inertia.js
 - **UI Components**: Radix UI + shadcn/ui + Tailwind CSS v4
 - **Authentication**: Laravel Fortify with 2FA support
@@ -16,9 +16,10 @@ LinkerLee is a bookmarking service that lets users save links and find them agai
 - **Build Tool**: Vite
 - **Domain**: linkerlee.com
 
-Note the database split: the Pest suite runs on in-memory SQLite (`phpunit.xml`), so
-MySQL-only behaviour — the `links_content_fulltext` index, column-length enforcement,
-collation — cannot be proven by the test suite. Verify those against MySQL directly.
+The Pest suite runs on a real Postgres database (`linkerlee_test`, set in `phpunit.xml`;
+host and credentials come from `.env`), so database-specific behaviour — full-text search,
+`ILIKE`, JSON columns, column lengths — is covered by the tests. MySQL and SQLite are not
+supported; do not add driver branches for them.
 
 ## Key Features
 
@@ -33,7 +34,7 @@ Roadmap in [README.md](README.md) for what is merely intended.
 - Tag suggestions derived from the fetched page text (`SuggestTagController`)
 - Groups: nested via `parent_group_id`, and "smart" via and/or/not tag rules in `query_options`
 - Inbox view for links that still need filing
-- Search across links and groups (MySQL full-text where available, `LIKE` otherwise)
+- Search across links and groups (case-insensitive `ILIKE`, plus Postgres full-text over the generated `links.search_vector` column)
 - Favourites, 1-5 ratings, and read/unread state (`read_at`)
 - Bulk editing of links
 - Archiving, soft-delete trash, restore and force delete
@@ -211,10 +212,13 @@ php artisan queue:listen --tries=1
 - Authentication and settings routes are grouped with appropriate middleware
 
 ### Database
-- **SQLite** by default for local development (`.env.example`), and in-memory SQLite for tests
-- **MySQL 8.0+** in production, and required for the `links_content_fulltext` index —
-  the metadata migration creates it only on the `mysql` driver, so full-text search
-  degrades to `LIKE` elsewhere
+- **PostgreSQL** only: `linkerlee` for local dev (`.env.example`), `linkerlee_test` for tests
+- `users.email` and `users.inbox_token` are `citext`: compared case-insensitively, as under
+  MySQL's `_ci` collation. Every other string comparison is case-sensitive on Postgres
+- Full-text search uses `links.search_vector`, a stored generated `tsvector` (`simple` config,
+  no stemming, first 100k chars, no GIN index — search is user-scoped), queried via `websearch_to_tsquery('simple', ?)`. The older
+  `links_content_fulltext` migration is MySQL-guarded history and a no-op on Postgres
+- `links.search_vector` is in `Link::$hidden`; never select it into a response
 - Migrations in `database/migrations/`
 - Seeders in `database/seeders/`
 - Factories in `database/factories/`

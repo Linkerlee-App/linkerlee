@@ -38,3 +38,19 @@ test('popular tags carry the name needed to open the filtered links view', funct
             ->has('links.data', 1)
             ->where('links.data.0.id', $link->id));
 });
+
+test('links per day are grouped by calendar date', function () {
+    $user = User::factory()->create();
+    Link::factory()->count(2)->create(['user_id' => $user->id, 'created_at' => now()->subDays(2)->setTime(9, 0)]);
+    Link::factory()->create(['user_id' => $user->id, 'created_at' => now()->subDays(2)->setTime(18, 30)]);
+    Link::factory()->create(['user_id' => $user->id, 'created_at' => now()->subDay()]);
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('linksPerDay', 2)
+            ->where('linksPerDay.0.date', now()->subDays(2)->toDateString())
+            ->where('linksPerDay.0.count', 3)
+            ->where('linksPerDay.1.count', 1));
+});

@@ -120,3 +120,22 @@ test('returns 406 when the url is longer than the column allows', function () {
 
     expect(Link::query()->where('user_id', $user->id)->count())->toBe(0);
 });
+
+test('matches a mixed-case inbox token whatever case the address arrives in', function () {
+    $user = User::factory()->create(['inbox_token' => 'AbCdEfGhIjKlMnOpQrStUvWx']);
+
+    $this->post('/webhooks/mailgun/inbound', mailgunPayload([
+        'recipient' => 'INBOX-abcdefghijklmnopqrstuvwx@mg.linkerlee.com',
+        'sender' => 'somebody-unrelated@example.com',
+    ]))->assertOk();
+
+    expect(Link::query()->where('user_id', $user->id)->count())->toBe(1);
+});
+
+test('matches the sender email regardless of case', function () {
+    $user = User::factory()->create(['email' => 'Me@Example.com']);
+
+    $this->post('/webhooks/mailgun/inbound', mailgunPayload(['sender' => 'me@example.COM']))->assertOk();
+
+    expect(Link::query()->where('user_id', $user->id)->count())->toBe(1);
+});

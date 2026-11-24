@@ -55,8 +55,7 @@ body:
       label: Database
       description: Self-hosted only.
       options:
-        - SQLite
-        - MySQL
+        - PostgreSQL
         - Not applicable / hosted
 
   - type: input

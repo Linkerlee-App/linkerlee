@@ -20,6 +20,28 @@ jobs:
       matrix:
         php-version: ['8.4', '8.5']
 
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: linkerlee
+          POSTGRES_PASSWORD: linkerlee
+          POSTGRES_DB: linkerlee_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U linkerlee -d linkerlee_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: linkerlee
+      DB_PASSWORD: linkerlee
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -29,6 +51,7 @@ jobs:
         with:
           php-version: ${{ matrix.php-version }}
           tools: composer:v2
+          extensions: pdo_pgsql
           coverage: none
 
       - name: Setup Node

@@ -31,7 +31,7 @@ services:
     volumes:
       - storage:/var/www/html/storage
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "SCRIPT_NAME=/ping SCRIPT_FILENAME=/ping REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 | grep -q pong"]
@@ -57,21 +57,17 @@ services:
         condition: service_healthy
     stop_grace_period: 100s
 
-  mysql:
-    image: mysql:8.0
+  postgres:
+    image: postgres:17
     restart: unless-stopped
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
     environment:
-      MYSQL_DATABASE: "${DB_DATABASE:-linkerlee}"
-      MYSQL_USER: "${DB_USERNAME:-linkerlee}"
-      MYSQL_PASSWORD: "${DB_PASSWORD:-please-change-me}"
-      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:-please-change-me-too}"
+      POSTGRES_DB: "${DB_DATABASE:-linkerlee}"
+      POSTGRES_USER: "${DB_USERNAME:-linkerlee}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-please-change-me}"
     volumes:
-      - mysql:/var/lib/mysql
+      - postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_ROOT_PASSWORD:-please-change-me-too}"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -79,4 +75,4 @@ services:
 
 volumes:
   storage:
-  mysql:
+  postgres:

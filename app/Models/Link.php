@@ -69,6 +69,15 @@ class Link extends Model implements Searchable
     ];
 
     /**
+     * `search_vector` is a database-generated index column, not link data.
+     *
+     * @var list<string>
+     */
+    protected $hidden = [
+        'search_vector',
+    ];
+
+    /**
      * Maximum length of the `link`, `favicon_url` and `preview_image_url` columns.
      */
     public const MAX_URL_LENGTH = 2048;
@@ -202,21 +211,23 @@ class Link extends Model implements Searchable
     }
 
     /**
-     * Match the search string against title/URL and, where the database
-     * supports it, against the stored page content via a full-text index.
+     * Match the search string case-insensitively against title, URL and
+     * description, and against the stored page content via the full-text
+     * `search_vector` column.
+     *
+     * A query with no positive term (`-webkit`) parses to a pure negation,
+     * whose `querytree()` is `T`: it would match every link, so it is skipped.
      */
     protected function applySearchString(Builder $query, string $searchString): Builder
     {
-        $query
-            ->where('links.title', 'LIKE', "%{$searchString}%")
-            ->orWhere('links.link', 'LIKE', "%{$searchString}%")
-            ->orWhere('links.description', 'LIKE', "%{$searchString}%");
-
-        if ($query->getConnection()->getDriverName() === 'mysql') {
-            return $query->orWhereFullText(['links.title', 'links.description', 'links.page_text'], $searchString);
-        }
-
-        return $query->orWhere('links.page_text', 'LIKE', "%{$searchString}%");
+        return $query
+            ->whereLike('links.title', "%{$searchString}%")
+            ->orWhereLike('links.link', "%{$searchString}%")
+            ->orWhereLike('links.description', "%{$searchString}%")
+            ->orWhereRaw(
+                "querytree(websearch_to_tsquery('simple', ?)) <> 'T' and links.search_vector @@ websearch_to_tsquery('simple', ?)",
+                [$searchString, $searchString],
+            );
     }
 
     public function getSearchResult(): SearchResult

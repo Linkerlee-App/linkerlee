@@ -94,7 +94,7 @@ origins, so a self-hosted instance works with it out of the box.
 - An Inbox view for links that still need filing
 
 **Working through**
-- Search across links and collections (full-text on MySQL, `LIKE` elsewhere)
+- Search across links and collections (case-insensitive, with Postgres full-text over the saved page content)
 - Favourites, 1–5 star ratings, read/unread state
 - Bulk editing across many links at once
 
@@ -123,15 +123,24 @@ origins, so a self-hosted instance works with it out of the box.
 | Styling | Tailwind CSS v4, Radix UI, shadcn/ui |
 | Build | Vite 7, Laravel Wayfinder |
 | Auth | Laravel Fortify (sessions + 2FA), Laravel Sanctum (API tokens) |
-| Database | SQLite by default; MySQL 8 supported |
+| Database | PostgreSQL 17 |
 | Tests | Pest 4 |
 
 ## Quick start
 
-**Prerequisites:** PHP 8.4 or newer, [Composer](https://getcomposer.org), and Node.js 22+.
+**Prerequisites:** PHP 8.4 or newer with `pdo_pgsql`, [Composer](https://getcomposer.org),
+Node.js 22+, and PostgreSQL 15 or newer. If you would rather not install any of this,
+[deploy it with Docker](#with-docker-recommended) instead.
 
-You do **not** need MySQL. LinkerLee defaults to SQLite, which needs no server. If you would
-rather not install any of this, [deploy it with Docker](#with-docker-recommended) instead.
+Create the two databases first, one for the app and one for the test suite:
+
+```bash
+createdb linkerlee
+createdb linkerlee_test
+```
+
+`.env.example` connects as `postgres` with no password on `127.0.0.1:5432`; adjust the
+`DB_*` values in `.env` if your server differs.
 
 ```bash
 git clone https://github.com/linkerlee-app/linkerlee.git
@@ -155,7 +164,7 @@ Most of `.env` can stay as it ships. The settings that actually matter:
 
 | Variable | Why it matters |
 |---|---|
-| `DB_CONNECTION` | `sqlite` by default. Set to `mysql` (plus the `DB_*` credentials) for production — MySQL also enables the full-text search index, which SQLite does not get. |
+| `DB_CONNECTION` | `pgsql`. PostgreSQL is the only supported database — search relies on its full-text index. Set the `DB_*` credentials to match your server. |
 | `QUEUE_CONNECTION` | Defaults to `database`. **A queue worker must be running** or link metadata is never fetched and saved links stay untitled. `composer dev` runs one for you; in production use `php artisan queue:work` under supervisor or systemd. |
 | `MAILGUN_*` | Optional. Only needed for save-by-email. `MAILGUN_WEBHOOK_SIGNING_KEY` must be set or the inbound webhook rejects everything. |
 | `LOG_VIEWER_ALLOWED_EMAILS` | Comma-separated emails allowed to open `/log-viewer`. Empty means nobody — set it deliberately. |
@@ -181,9 +190,9 @@ php artisan test --compact --filter=LinkFilter   # one test
 php artisan test --compact tests/Feature/Api     # one directory
 ```
 
-Tests run against in-memory SQLite while production runs MySQL. Anything depending on MySQL
-specifically — the full-text index, column-length enforcement, collation — cannot be proven
-by the suite; verify those against a real MySQL database.
+Tests run against the `linkerlee_test` PostgreSQL database — the same engine as production,
+so full-text search, column lengths and JSON queries are exercised for real. `phpunit.xml`
+sets the database name; host and credentials come from your `.env`.
 
 ## Code quality
 
@@ -218,7 +227,7 @@ consumer; breaking changes will be coordinated with it.
 ### With Docker (recommended)
 
 The repository ships a `Dockerfile` and a `docker-compose.yml` that stand up the whole
-stack — nginx, PHP-FPM, **a queue worker** and MySQL 8 — from one command.
+stack — nginx, PHP-FPM, **a queue worker** and PostgreSQL 17 — from one command.
 
 ```bash
 git clone https://github.com/linkerlee-app/linkerlee.git
@@ -228,7 +237,7 @@ cp .env.docker.example .env
 # Generate an app key and paste it into APP_KEY in .env
 docker compose run --rm --no-deps --entrypoint php app artisan key:generate --show
 
-# Set your own DB_PASSWORD and DB_ROOT_PASSWORD in .env, then:
+# Set your own DB_PASSWORD in .env, then:
 docker compose up -d --build
 ```
 
@@ -241,7 +250,7 @@ sent; read it with `docker compose logs app` or at `/log-viewer`.
 | `web` | nginx on the port set by `APP_PORT`, serving `public/` and the built assets |
 | `app` | PHP-FPM. Runs the migrations and warms the config, route and view caches on startup |
 | `queue` | `php artisan queue:work` — **the metadata fetcher**. Without it, saved links stay untitled |
-| `mysql` | MySQL 8, which is also what enables full-text search |
+| `postgres` | PostgreSQL 17 |
 
 Useful commands:
 
@@ -257,11 +266,14 @@ Two things worth knowing before putting it on the internet:
 - **Nothing in the stack terminates TLS.** Put a reverse proxy (Caddy, Traefik, nginx) in
   front of `web`, and set `APP_URL` to the public `https://` address. The bundled nginx
   honours `X-Forwarded-Proto`, so Laravel generates `https://` URLs behind such a proxy.
-- **Change `DB_PASSWORD` and `DB_ROOT_PASSWORD`** before the first `up` — MySQL only reads
-  them when it initialises its volume.
+- **Change `DB_PASSWORD`** before the first `up` — Postgres only reads it when it
+  initialises its volume.
 
 To use an external database instead of the bundled one, point `DB_HOST` at it and remove
-the `mysql` service (and the `depends_on` entries referencing it) from `docker-compose.yml`.
+the `postgres` service (and the `depends_on` entries referencing it) from `docker-compose.yml`.
+
+Upgrading an existing MySQL-based install? Follow
+[docs/postgres-migration.md](docs/postgres-migration.md) to copy your data across.
 
 ### Without Docker
 

@@ -82,3 +82,14 @@ test('users are rate limited', function () {
 
     $response->assertTooManyRequests();
 });
+
+test('users whose stored email has capitals can authenticate in any case', function () {
+    User::factory()->create(['email' => 'Mixed.Case@Example.com']);
+
+    $this->post(route('login.store'), [
+        'email' => 'MIXED.case@example.COM',
+        'password' => 'password',
+    ]);
+
+    $this->assertAuthenticated();
+});

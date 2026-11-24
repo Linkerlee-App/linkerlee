@@ -31,9 +31,17 @@ composer dev
 
 The app runs at <http://localhost:8000>.
 
-**You do not need MySQL.** Local development defaults to SQLite and the test suite runs on
-in-memory SQLite (`phpunit.xml`). Install MySQL only if you are working on something
-MySQL-specific — the full-text search index, column lengths, collation.
+**You need PostgreSQL** (15 or newer) — it is the only supported database, for local
+development and for the test suite alike. Before `composer setup`, create both databases:
+
+```bash
+createdb linkerlee
+createdb linkerlee_test
+```
+
+`.env.example` connects as `postgres` with no password on `127.0.0.1:5432`; adjust the
+`DB_*` values in `.env` if yours differs. The tests use the same host and credentials with
+the `linkerlee_test` database (`phpunit.xml`).
 
 If TypeScript reports unresolved `@/actions` or `@/routes` imports, the gitignored Wayfinder
 output is missing: run `php artisan wayfinder:generate`.
@@ -109,8 +117,8 @@ composer test                                  # full suite before you push
 All tests must pass. Do not delete or skip an existing test to make a change fit — if a test
 is genuinely wrong, say so in the PR and explain why.
 
-Remember the SQLite/MySQL split: if your change depends on MySQL behaviour, the suite cannot
-prove it. Verify against MySQL and say so in the PR.
+The suite runs on PostgreSQL, the same engine as production, so database behaviour —
+full-text search, `ILIKE`, JSON columns — is covered by the tests like anything else.
 
 ### 4. Docs
 

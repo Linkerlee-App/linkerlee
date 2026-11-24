@@ -118,8 +118,8 @@ paths:
         Answers "have I already saved this page?". Requires a token with the
         `create` ability.
 
-        The URL is matched exactly — a trailing slash or a differing query string
-        will not match.
+        The URL is matched exactly and case-sensitively — a trailing slash, a
+        differing query string or differing letter case will not match.
 
         A `404` here is the normal negative answer, not an error condition.
       tags: [Links]
